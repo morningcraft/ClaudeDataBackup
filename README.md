@@ -1,123 +1,125 @@
 # ClaudeDataBackup
 
-> 跨平台 Claude 对话本地备份工具。Windows + macOS。下载即用，双击打开。
+> Cross-platform local backup tool for Claude conversations. Windows + macOS. Download and use.
 
-## 它解决什么问题
+[中文文档](README_CN.md)
 
-Claude 的对话数据只存在 Anthropic 的服务器上，没有官方的批量导出方案。如果你的账号因为任何原因被封禁、误登出、或数据误删——**服务器端的对话你再也拿不回来**。
+## What it solves
 
-ClaudeDataBackup 在你的账号还活着的时候，把对话数据拉到本地建立备份镜像。万一账号出事，你有完整的离线副本。
+Your Claude conversation data lives only on Anthropic's servers. There's no official bulk export. If your account gets banned, logged out by mistake, or data gets deleted — **those conversations are gone forever**.
 
-### 三条备份路径
+ClaudeDataBackup pulls your conversations to your local machine while your account is still alive, creating a local mirror. If something happens to your account, you have a complete offline copy.
 
-| Mode | 能备份什么 | 什么时候用 |
+### Three backup paths
+
+| Mode | What it backs up | When to use |
 |---|---|---|
-| **Mode A — 在线 API** | 所有对话的完整内容（100%） | 账号还活着、cookie 有效时 |
-| **Mode B — 缓存挖掘** | Claude Desktop 缓存里的近期对话 | 账号已封的兜底，或增量补充 |
-| **Mode C — Claude Code 日志** | 本地所有 Claude Code CLI 会话 | 用过 Claude Code 时 |
+| **Mode A — Live API** | All conversations, full content (100%) | Account is alive, cookie is valid |
+| **Mode B — Cache mining** | Recent conversations from Claude Desktop cache | Account banned fallback, or incremental supplement |
+| **Mode C — Claude Code logs** | All local Claude Code CLI sessions | If you've used Claude Code |
 
-日常用 Mode A 做定期增量备份就够了。Mode B 和 C 是账号出事后的补救手段。
+For daily use, Mode A with incremental backup is enough. Mode B and C are for recovery after account issues.
 
-### 附加功能
+### Additional features
 
-- **自包含 HTML 查看器**：每次备份自动生成 `index.html`，浏览器打开即可查看所有对话，支持搜索、筛选、Markdown 渲染、图片内联、PDF 打开
-- **文件附件提取**：自动提取对话中的文本附件、图片预览、PDF 文档，保存到本地
-- **滚动导航条**：长对话快速跳转，悬停预览用户消息内容
+- **Self-contained HTML viewer**: Auto-generates `index.html` after each backup. Open in browser to search, filter, view all conversations with Markdown rendering, inline images, and PDF support
+- **File attachment extraction**: Automatically saves text attachments, image previews, and PDF documents locally
+- **Scroll navigation bar**: Quick jump to any user message in long conversations with hover preview
 
 ---
 
-## 下载使用（推荐）
+## Download & Use (Recommended)
 
 ### macOS
 
-1. 从 [Releases](https://github.com/Raven940309/ClaudeDataBackup/releases) 下载 `ClaudeDataBackup.dmg`
-2. 打开 DMG，把 `ClaudeDataBackup` 拖到 `Applications` 文件夹
-3. 首次打开会提示"无法验证开发者"——**这是 macOS Gatekeeper 对所有未签名应用的标准行为**，不是安全警告。解决方法：系统设置 → 隐私与安全性 → 底部找到 ClaudeDataBackup → 点"仍要打开"。只需要操作一次，之后正常双击就行
+1. Download `ClaudeDataBackup.dmg` from [Releases](https://github.com/Raven940309/ClaudeDataBackup/releases)
+2. Open the DMG, drag `ClaudeDataBackup` to the `Applications` folder
+3. On first open, macOS will say "cannot verify developer" — **this is standard Gatekeeper behavior for all unsigned apps**, not a security warning. Fix: System Settings → Privacy & Security → find ClaudeDataBackup at the bottom → click "Open Anyway". Only needed once.
 
 ### Windows
 
-1. 从 [Releases](https://github.com/Raven940309/ClaudeDataBackup/releases) 下载 `ClaudeDataBackup.exe`
-2. 双击运行
-3. 如果 Windows Defender SmartScreen 弹出警告，点"更多信息" → "仍要运行"（因为没有代码签名证书）
+1. Download `ClaudeDataBackup.exe` from [Releases](https://github.com/Raven940309/ClaudeDataBackup/releases)
+2. Double-click to run
+3. If Windows Defender SmartScreen shows a warning, click "More info" → "Run anyway" (due to no code signing certificate)
 
-### GUI 操作流程
+### GUI walkthrough
 
-打开后你会看到一个这样的界面：
+After launching, you'll see:
 
 ```
 ┌─ ClaudeDataBackup v0.1.0 ─────────────────────┐
 │                                                 │
-│ 环境检测                                        │
-│ Claude Desktop: 已检测到 | Cookie: 可读 | ...   │
+│ Environment Check                               │
+│ Claude Desktop: Found | Cookie: Readable | ...  │
 │                                                 │
-│ 备份目录                                        │
-│ [~/Documents/ClaudeDataBackup    ] [更改]       │
+│ Backup Directory                                │
+│ [~/Documents/ClaudeDataBackup    ] [Change]     │
 │                                                 │
-│ 数据源选择                                      │
-│ ☑ Claude.ai 对话（在线 API + 缓存）  已备份 40 条│
-│ ☑ Claude Code 会话（本地日志）       已备份 43 个│
-│   ▸ 展开项目选择                                │
+│ Data Sources                                    │
+│ ☑ Claude.ai (Live API + Cache)     40 backed up │
+│ ☑ Claude Code (Local logs)         43 backed up │
+│   ▸ Expand project selection                    │
 │                                                 │
-│ [        立即备份（增量）          ]             │
-│ 增量模式：只下载新的和变化的内容                 │
+│ [        Backup Now (Incremental)     ]         │
+│ Incremental: only download new & changed        │
 │                                                 │
-│ [查看聊天记录] [导出完整副本] [打开备份目录]     │
+│ [View History] [Export Full Copy] [Open Folder] │
 │                                                 │
-│ 日志                                            │
+│ Log                                             │
 │ ┌─────────────────────────────────────────┐     │
-│ │ [备份] 开始增量备份 ...                  │     │
-│ │ [Mode A] 获取对话列表：14 条             │     │
-│ │ [完成] 备份结束                          │     │
+│ │ [Backup] Starting incremental ...       │     │
+│ │ [Mode A] Fetching conversation list...  │     │
+│ │ [Done] Backup complete                  │     │
 │ └─────────────────────────────────────────┘     │
 └─────────────────────────────────────────────────┘
 ```
 
-**首次使用**：
+**First use**:
 
-1. 启动后会自动检测你的环境（Claude Desktop 是否安装、Cookie 是否可读、Claude Code 是否有会话）
-2. 确认备份目录（默认 `~/Documents/ClaudeDataBackup`，可更改）
-3. 勾选要备份的数据源（默认全选）
-4. 点 **"立即备份"** —— 首次会全量抓取，之后再点只下载新增内容
-5. 备份完成后，点 **"查看聊天记录"** 会在浏览器打开 HTML 查看器
+1. On launch, it auto-detects your environment (Claude Desktop installed, cookie readable, Claude Code sessions)
+2. Confirm backup directory (default: `~/Documents/ClaudeDataBackup`, changeable)
+3. Check the data sources to back up (all selected by default)
+4. Click **"Backup Now"** — first run does a full backup, subsequent runs only download new content
+5. After backup completes, click **"View History"** to open the HTML viewer in your browser
 
-**日常使用**：
+**Daily use**:
 
-- 定期打开点一下"立即备份"即可，增量模式只下载变化的部分，很快
-- "导出完整副本"适合一次性全量导出到指定位置（比如移动硬盘）
-- "打开日志"可以查看详细运行记录，遇到问题把日志文件发给开发者诊断
+- Open and click "Backup Now" periodically — incremental mode only downloads changes, very fast
+- "Export Full Copy" is for one-time full export to a specific location (e.g., external drive)
+- "Open Log" shows detailed runtime records. If you encounter issues, send the log file to the developer for diagnosis
 
 ---
 
-## CLI 使用（进阶）
+## CLI Usage (Advanced)
 
-如果你更喜欢命令行，或者需要自动化定时备份：
+If you prefer the command line, or need automated scheduled backups:
 
 ```bash
-# 安装
+# Install
 pip install claude-data-backup
 
-# 增量备份（推荐，首次全量，之后增量）
+# Incremental backup (recommended: full first time, then incremental)
 claude-data-backup --incremental
 
-# 修改备份目录
+# Change backup directory
 claude-data-backup --set-backup-dir ~/my-backup
 
-# 只备份 Claude.ai
+# Only back up Claude.ai
 claude-data-backup --incremental --mode ab
 
-# 只备份 Claude Code
+# Only back up Claude Code
 claude-data-backup --incremental --mode c
 
-# 一次性导出到指定目录
+# One-time export to a specific directory
 claude-data-backup --output ~/Desktop/my-export
 
-# 账号已封时，只跑缓存和 CLI 日志
+# Account banned: only run cache mining and CLI logs
 claude-data-backup --output /tmp/x --mode bc
 ```
 
 ---
 
-## 开发者
+## For Developers
 
 ```bash
 # Python 3.12 required
@@ -132,59 +134,57 @@ claude-data-backup --incremental
 # GUI
 claude-data-backup-gui
 
-# 打包（Mac）→ dist/ClaudeDataBackup.app
+# Build (Mac) → dist/ClaudeDataBackup.app
 bash scripts/build-mac.sh
 
-# 打包（Windows）→ dist\ClaudeDataBackup.exe
+# Build (Windows) → dist\ClaudeDataBackup.exe
 scripts\build-win.bat
 ```
 
 ---
 
-## 项目文档
+## Documentation
 
-- [`CLAUDE.md`](CLAUDE.md) — 项目身份和设计原则
-- [`STATUS.md`](STATUS.md) — 当前进度
-- [`docs/architecture.md`](docs/architecture.md) — 模块拆解
-- [`docs/data-formats.md`](docs/data-formats.md) — 三种数据源格式参考
-- [`docs/platform-notes.md`](docs/platform-notes.md) — Mac / Win 差异
-- [`docs/handoff.md`](docs/handoff.md) — 跨机器交接手册
+- [`docs/architecture.md`](docs/architecture.md) — Module breakdown & data flow
+- [`docs/data-formats.md`](docs/data-formats.md) — Three data source format reference
+- [`docs/platform-notes.md`](docs/platform-notes.md) — Mac / Windows platform differences
+- [`README_CN.md`](README_CN.md) — 中文文档
 
 ---
 
-## 遇到问题？
+## Troubleshooting
 
-日志文件在 `~/.claude-data-backup/logs/app.log`（Mac/Win 路径相同）。把它发给开发者即可诊断。
-
----
-
-## 隐私
-
-- 代码**纯本地运行**。除了 claude.ai API 本身（Mode A 抓对话时）以外，不发起任何网络请求。
-- 没有 Telemetry、没有用户分析、没有崩溃上报、没有自动更新。
-- cookie 和 sessionKey 只在内存里存在，**不落盘**。
-- 代码完全开源，每一行都可审查。
+Log file location: `~/.claude-data-backup/logs/app.log` (same path on Mac and Windows). Send it to the developer for diagnosis.
 
 ---
 
-## 免责声明
+## Privacy
 
-本工具仅供用户导出和备份**自己的** Claude 数据。
-
-**关于账号封禁风险**：Anthropic 可能因多种原因封禁用户账号（包括但不限于违反服务条款、异常使用模式、误判等）。账号一旦被封，云端对话数据将无法再访问。使用本工具备份数据是一种预防性措施——它不会导致你的账号被封禁，也不会向 Anthropic 发送任何额外的请求（Mode A 的行为与你手动浏览对话完全一致）。但本工具的使用方式是否符合 Anthropic 的服务条款，使用者需自行判断。
-
-- 作者不对因使用本工具导致的任何后果承担责任。
-- 本工具不会将你的数据上传到任何第三方服务器。
-- 本工具不鼓励任何违反服务条款的行为。
+- Code runs **entirely locally**. No network requests except to the claude.ai API itself (Mode A conversation fetching).
+- No telemetry, no analytics, no crash reporting, no auto-update.
+- Cookie and sessionKey exist **only in memory**, never written to disk.
+- Code is fully open source, every line is auditable.
 
 ---
 
-## 许可证
+## Disclaimer
 
-MIT License. 见 [LICENSE](LICENSE)。
+This tool is intended solely for users to export and back up **their own** Claude data.
+
+**Regarding account ban risk**: Anthropic may ban user accounts for various reasons (including but not limited to terms of service violations, anomalous usage patterns, or false positives). Once banned, cloud conversation data becomes inaccessible. Using this tool for backup is a preventive measure — it will not cause your account to be banned, nor does it send any additional requests to Anthropic (Mode A behaves identically to manually browsing your conversations). However, users must judge for themselves whether this tool's usage complies with Anthropic's terms of service.
+
+- The author assumes no responsibility for any consequences arising from the use of this tool.
+- This tool does not upload your data to any third-party servers.
+- This tool does not encourage any violation of terms of service.
 
 ---
 
-## 致谢
+## License
 
-灵感来自 Raven 的账号被封事件 + [macSystemCleaner](https://github.com/Raven940309/macSystemCleaner) 的 "ship then iterate" 模型。
+MIT License. See [LICENSE](LICENSE).
+
+---
+
+## Acknowledgments
+
+Inspired by Raven's account ban incident + the "ship then iterate" model from [macSystemCleaner](https://github.com/Raven940309/macSystemCleaner).
