@@ -33,7 +33,12 @@ def test_safe_name():
     assert renderer.safe_name("normal") == "normal"
     assert renderer.safe_name("") == "未命名"
     assert renderer.safe_name("with/slash:and|pipe") == "withslashandpipe"
-    assert len(renderer.safe_name("x" * 200)) <= 81  # 80 + "…"
+    # 按字节截断：160 字节上限，ASCII 字符 1 字节/个
+    assert len(renderer.safe_name("x" * 200).encode("utf-8")) <= 160
+    # 中文字符 3 字节/个，确保完整文件名不超 255 字节
+    cn_name = renderer.safe_name("中" * 200, 160)
+    full = f"2026-01-01__{cn_name}__abcd1234.jsonl"
+    assert len(full.encode("utf-8")) <= 255
 
 
 def test_cli_categorize():

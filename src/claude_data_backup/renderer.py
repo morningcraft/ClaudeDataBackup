@@ -17,14 +17,26 @@ from .cli_exporter import SessionData
 _INVALID_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
-def safe_name(s: str, max_len: int = 80) -> str:
+def safe_name(s: str, max_bytes: int = 160) -> str:
+    """生成文件系统安全的名字，按 UTF-8 字节长度截断。
+
+    max_bytes 默认 160：给日期前缀(~12B)、分隔符(2B)、session ID(9B)、
+    扩展名(~6B) 留出余量，确保完整路径的文件名不超过 255 字节。
+    """
     if not s:
         return "未命名"
     s = _INVALID_NAME_CHARS.sub("", s)
     s = s.replace("\n", " ").strip()
     s = re.sub(r"\s+", " ", s)
-    if len(s) > max_len:
-        s = s[:max_len].rstrip() + "…"
+    # 按字节截断（SMB/NAS 文件名限制 255 字节）
+    encoded = s.encode("utf-8")
+    if len(encoded) > max_bytes:
+        # 截断到 max_bytes 以内，确保不截断多字节字符
+        truncated = encoded[:max_bytes - 3]  # 留 3 字节给 "…"
+        # 回退到最近的字符边界
+        while truncated and (truncated[-1] & 0xC0) == 0x80:
+            truncated = truncated[:-1]
+        s = truncated.decode("utf-8", errors="ignore") + "…"
     return s or "未命名"
 
 
