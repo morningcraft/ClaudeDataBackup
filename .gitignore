@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual envs
+.venv/
+venv/
+env/
+.python-version.local
+
+# PyInstaller build
+build/
+*.spec
+ClaudeRescue.spec
+
+# PyInstaller 产出目录里的二进制（保留 .gitkeep）
+dist/ClaudeRescue/
+dist/ClaudeRescue.app/
+dist/ClaudeRescue.exe
+dist/ClaudeRescue
+dist/ClaudeDataBackup/
+dist/ClaudeDataBackup.app/
+dist/ClaudeDataBackup.exe
+dist/ClaudeDataBackup
+
+# Packaged outputs — keep dist/ in git but ignore build artifacts inside
+dist/*
+!dist/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Test output
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime artifacts from development runs
+/tmp-output/
+/scratch/
+
+# Backup data outputs (generated at runtime, never commit)
+/desktop-conversations/
+/files/
+/claude-code/
+/test-output/
+/jewel-export/
+/index.html
+/manifest.json
+/STATS.md
+/INDEX.md
+
+# Local overrides (never commit secrets or dev-only state)
+.env
+.env.local
+
+# Internal dev docs (not for public repo)
+CLAUDE.md
+STATUS.md
+testing-log.md
+docs/handoff.md

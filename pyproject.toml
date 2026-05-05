@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-data-backup"
+version = "0.1.0"
+description = "Cross-platform backup tool for Claude data: live API backup + HTTP cache mining + Claude Code CLI session export."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Raven (Fang Xu)", email = "raven940309@gmail.com" }]
+keywords = ["claude", "anthropic", "backup", "export", "data"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "requests>=2.31",
+    "zstandard>=0.22",
+    "brotli>=1.1",
+    "pycryptodome>=3.20",
+    "pywin32>=306; sys_platform == 'win32'",
+    "customtkinter>=5.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pyinstaller>=6.3",
+]
+
+[project.scripts]
+claude-data-backup = "claude_data_backup.main:main"
+claude-data-backup-gui = "claude_data_backup.gui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+claude_data_backup = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
