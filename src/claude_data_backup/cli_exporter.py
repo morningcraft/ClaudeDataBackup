@@ -120,8 +120,8 @@ def parse_session(path: Path, category: Category, project: str) -> SessionData |
     return sd
 
 
-def iter_sessions() -> Iterator[SessionData]:
-    """流式遍历所有真实 + observer 会话，跳过 diag / mcp-timing。"""
+def iter_sessions(*, skip_observer: bool = False) -> Iterator[SessionData]:
+    """流式遍历真实会话（和可选的 observer），跳过 diag / mcp-timing。"""
     projects_dir = claude_cli_projects_dir_optional()
     if projects_dir is None:
         return
@@ -130,6 +130,8 @@ def iter_sessions() -> Iterator[SessionData]:
             continue
         cat = categorize(proj_dir.name)
         if cat is None:
+            continue
+        if skip_observer and cat == "observer":
             continue
         sessions = sorted(proj_dir.glob("*.jsonl"))
         if not sessions:

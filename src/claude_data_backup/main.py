@@ -116,18 +116,17 @@ def run_mode_c(logger: Callable[[str], None]) -> tuple[list[cli_exporter.Session
         return [], {"status": "skipped", "reason": "未安装 Claude Code CLI"}
 
     counts = cli_exporter.count_sessions()
-    logger(f"[Mode C] 准备处理：real={counts['real']}, observer={counts['observer']}, "
-           f"跳过测试 {counts['skipped_test']} 个")
+    logger(f"[Mode C] 准备处理：real={counts['real']}, "
+           f"跳过 observer {counts['observer']} + 测试 {counts['skipped_test']}")
 
     sessions: list[cli_exporter.SessionData] = []
-    for idx, s in enumerate(cli_exporter.iter_sessions()):
+    for idx, s in enumerate(cli_exporter.iter_sessions(skip_observer=True)):
         sessions.append(s)
         if (idx + 1) % 50 == 0:
             logger(f"[Mode C] 已解析 {idx+1} 个 session")
     logger(f"[Mode C] 共解析 {len(sessions)} 个 session")
     return sessions, {"status": "ok",
-                      "real": sum(1 for s in sessions if s.category == "real"),
-                      "observer": sum(1 for s in sessions if s.category == "observer")}
+                      "real": sum(1 for s in sessions if s.category == "real")}
 
 
 # ---------- 写出 ----------
@@ -193,19 +192,15 @@ def write_desktop_conversations(out_root: Path,
 
 def write_cli_sessions(out_root: Path,
                         sessions: list[cli_exporter.SessionData],
-                        logger: Callable[[str], None]) -> dict:
+                        logger: Callable[[str], None]) -> int:
     base = out_root / "claude-code"
-    cat_dirs = {
-        "real": base / "real",
-        "observer": base / "observer",
-    }
-    for d in cat_dirs.values():
-        d.mkdir(parents=True, exist_ok=True)
+    real_dir = base / "real"
+    real_dir.mkdir(parents=True, exist_ok=True)
 
-    rows_by_cat: dict[str, list[dict]] = defaultdict(list)
+    rows: list[dict] = []
 
     for s in sessions:
-        proj_out = cat_dirs[s.category] / renderer.safe_name(s.project, 80)
+        proj_out = real_dir / renderer.safe_name(s.project, 80)
         proj_out.mkdir(parents=True, exist_ok=True)
         date = renderer.iso_to_date(s.first_ts)
         stem = f"{date}__{renderer.safe_name(s.title, 80)}__{s.session_id[:8]}"
@@ -214,54 +209,32 @@ def write_cli_sessions(out_root: Path,
         md_path.write_text(renderer.render_cli_session(s), encoding="utf-8")
         renderer.hardlink_or_copy(s.source_path, jsonl_path)
 
-        rows_by_cat[s.category].append({
+        rows.append({
             "date": date, "project": s.project, "title": s.title,
             "user_turns": s.user_turns, "asst_turns": s.assistant_turns,
             "events": s.total_events, "model": s.model,
             "path": str(md_path.relative_to(base)),
         })
 
-    # 每类索引
-    cat_title = {
-        "real": "真实项目会话",
-        "observer": "claude-mem 观察器会话（自动生成）",
-    }
-    for cat, title in cat_title.items():
-        rows = rows_by_cat[cat]
-        rows.sort(key=lambda r: (r["project"], r["date"]), reverse=True)
-        lines = [
-            f"# Claude Code —— {title}",
-            "",
-            f"共 **{len(rows)}** 个会话。",
-            "每个会话有一个 `.md`（人类阅读渲染）和一个 `.jsonl`（原始事件流，硬链接到 `~/.claude/projects/`）。",
-            "",
-            "| 日期 | 项目 | 标题 | 用户/助手轮数 | 事件数 | 模型 | 文件 |",
-            "|---|---|---|--:|--:|---|---|",
-        ]
-        for r in rows:
-            lines.append(
-                f"| {r['date']} | {r['project']} | {r['title'][:60]} | "
-                f"{r['user_turns']}/{r['asst_turns']} | {r['events']} | "
-                f"`{r['model']}` | [打开]({r['path']}) |"
-            )
-        (base / cat / "00_index.md").write_text("\n".join(lines), encoding="utf-8")
-
-    # 顶层 cli 索引
-    top = [
-        "# Claude Code CLI 会话总览",
+    rows.sort(key=lambda r: (r["project"], r["date"]), reverse=True)
+    lines = [
+        "# Claude Code —— 真实项目会话",
         "",
-        f"数据来源：`~/.claude/projects/`。",
+        f"共 **{len(rows)}** 个会话。",
+        "每个会话有一个 `.md`（人类阅读渲染）和一个 `.jsonl`（原始事件流，硬链接到 `~/.claude/projects/`）。",
         "",
-        f"- [`real/`](real/00_index.md) —— 真实项目会话，**{len(rows_by_cat['real'])}** 个。",
-        f"- [`observer/`](observer/00_index.md) —— claude-mem 观察器自动生成的会话，"
-        f"**{len(rows_by_cat['observer'])}** 个。",
-        "",
-        "> 注：`-private-tmp-diag-*` 和 `-private-tmp-mcp-timing*` 目录是公司侧自动化测试，已在导出时跳过。",
+        "| 日期 | 项目 | 标题 | 用户/助手轮数 | 事件数 | 模型 | 文件 |",
+        "|---|---|---|--:|--:|---|---|",
     ]
-    (base / "00_index.md").write_text("\n".join(top), encoding="utf-8")
-    logger(f"[写出] claude-code: real={len(rows_by_cat['real'])}, "
-           f"observer={len(rows_by_cat['observer'])}")
-    return {k: len(v) for k, v in rows_by_cat.items()}
+    for r in rows:
+        lines.append(
+            f"| {r['date']} | {r['project']} | {r['title'][:60]} | "
+            f"{r['user_turns']}/{r['asst_turns']} | {r['events']} | "
+            f"`{r['model']}` | [打开]({r['path']}) |"
+        )
+    (base / "00_index.md").write_text("\n".join(lines), encoding="utf-8")
+    logger(f"[写出] claude-code: real={len(rows)}")
+    return len(rows)
 
 
 # ---------- 主入口 ----------
@@ -438,19 +411,18 @@ def _incremental_mode_c(manifest: dict,
         return [], {"status": "skipped", "reason": "未安装 Claude Code CLI"}
 
     counts = cli_exporter.count_sessions()
-    logger(f"[Mode C] 准备处理：real={counts['real']}, observer={counts['observer']}, "
-           f"跳过测试 {counts['skipped_test']} 个")
+    logger(f"[Mode C] 准备处理：real={counts['real']}, "
+           f"跳过 observer {counts['observer']} + 测试 {counts['skipped_test']}")
 
     new_sessions: list[cli_exporter.SessionData] = []
-    for s in cli_exporter.iter_sessions():
+    for s in cli_exporter.iter_sessions(skip_observer=True):
         if not mf.needs_session_update(manifest, s.session_id, s.last_ts or ""):
             continue
         new_sessions.append(s)
 
     logger(f"[Mode C] 新增/更新 {len(new_sessions)} 个 session")
     return new_sessions, {"status": "ok", "new": len(new_sessions),
-                           "real": sum(1 for s in new_sessions if s.category == "real"),
-                           "observer": sum(1 for s in new_sessions if s.category == "observer")}
+                           "real": sum(1 for s in new_sessions if s.category == "real")}
 
 
 def run_incremental(backup_dir: Path, modes: str,
@@ -635,8 +607,7 @@ def main():
           f" ({stats['mode_b'].get('cached_total', 0)} 条, "
           f"其中 {stats['mode_b'].get('new_unique_to_b', 0)} 条是 A 没拿到的)")
     print(f"Mode C: {stats['mode_c'].get('status')}"
-          f" (real={stats['mode_c'].get('real', 0)}, "
-          f"observer={stats['mode_c'].get('observer', 0)})")
+          f" (real={stats['mode_c'].get('real', 0)})")
     if not args.incremental:
         print(f"输出：{args.output or _default_output_dir()}")
 
