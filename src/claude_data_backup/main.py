@@ -408,19 +408,25 @@ def _incremental_mode_c(manifest: dict,
     projects_dir = paths.claude_cli_projects_dir_optional()
     if projects_dir is None:
         logger("[Mode C] ~/.claude/projects/ 不存在。跳过。")
+        log.info("Mode C 跳过：项目目录不存在")
         return [], {"status": "skipped", "reason": "未安装 Claude Code CLI"}
 
     counts = cli_exporter.count_sessions()
-    logger(f"[Mode C] 准备处理：real={counts['real']}, "
+    msg = (f"[Mode C] 准备处理：real={counts['real']}, "
            f"跳过 observer {counts['observer']} + 测试 {counts['skipped_test']}")
+    logger(msg)
+    log.info(msg)
 
     new_sessions: list[cli_exporter.SessionData] = []
     for s in cli_exporter.iter_sessions(skip_observer=True):
-        if not mf.needs_session_update(manifest, s.session_id, s.last_ts or ""):
+        if not mf.needs_session_update(manifest, s.session_id, s.last_ts or "",
+                                     backup_dir=backup_dir):
             continue
         new_sessions.append(s)
 
-    logger(f"[Mode C] 新增/更新 {len(new_sessions)} 个 session")
+    msg = f"[Mode C] 新增/更新 {len(new_sessions)} 个 session"
+    logger(msg)
+    log.info(msg)
     return new_sessions, {"status": "ok", "new": len(new_sessions),
                            "real": sum(1 for s in new_sessions if s.category == "real")}
 
@@ -497,6 +503,7 @@ def run_incremental(backup_dir: Path, modes: str,
             mf.register_cli_session(manifest, s.session_id, {
                 "title": s.title,
                 "project": s.project,
+                "category": s.category,
                 "first_ts": s.first_ts or "",
                 "last_ts": s.last_ts or "",
                 "source": "cli_log",
