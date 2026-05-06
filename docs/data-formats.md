@@ -218,7 +218,7 @@ Content blocks 类型和 claude.ai 一致：`text` / `thinking` / `tool_use` / `
 |---|---|
 | `-private-tmp-diag-*` | **跳过**（公司侧自动化测试） |
 | `-private-tmp-mcp-timing*` | **跳过**（公司侧测试） |
-| `claude-mem-observer-sessions` 字样 | 归到 `observer/` 子目录 |
+| `claude-mem-observer-sessions` 字样 | 归到 `observer/` 子目录（**默认不备份**，`skip_observer=True`，单机可达 13GB） |
 | 其他 | 归到 `real/` 子目录 |
 
 ### session 元数据
@@ -244,10 +244,9 @@ Content blocks 类型和 claude.ai 一致：`text` / `thinking` / `tool_use` / `
 │   ├── 00_index.md
 │   ├── projects/<project_name>/<date>__<title>.md + .json
 │   └── unassigned/<date>__<title>.md + .json
-└── claude-code/                           # Mode C 的结果
+└── claude-code/                           # Mode C 的结果（只备份 real 会话，跳过 observer）
     ├── 00_index.md
-    ├── real/<project>/<date>__<title>.md + .jsonl
-    └── observer/<project>/<date>__<title>.md + .jsonl
+    └── real/<project>/<date>__<title>.md + .jsonl
 ```
 
 每条 Markdown 顶部增加一行 `| 数据来源 | {在线 API (完整) / 缓存残骸 (可能不完整) / CLI 本地日志} |`，让用户能一眼区分。

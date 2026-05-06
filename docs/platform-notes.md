@@ -142,6 +142,11 @@ else:
 - 解压：zstd 解压后直接 `json.loads()`
 - `cache_extractor.py` 的 `_iter_block_cache()` 函数处理此格式
 
+**Windows Block File Cache 精确匹配**：
+- 每个 `f_*` 文件内可能包含多个缓存条目
+- 条目起始标记：`0x00000820`（data_* entry marker），偏移 +20 处的 `file_num` 字段关联到对应的 `data_*` 文件
+- `cache_extractor.py` 的 `_iter_block_cache()` 按 entry marker 切分文件，逐条尝试解压和 JSON 解析
+
 **召回率差异**：
 - macOS Mode B 召回率：~60-70%（缓存保留较多历史对话）
 - Windows UWP Mode B 召回率：~21%（3/14，UWP 缓存 LRU 淘汰更激进）
@@ -219,6 +224,29 @@ customtkinter 需要显式声明 hidden imports，PyInstaller 的自动检测可
 ```
 
 `gui.py` 中 `_set_icon()` 在运行时查找图标：打包后从 `sys._MEIPASS/assets/` 读取，开发时从项目根目录 `assets/` 读取。
+
+---
+
+## SMB / NAS 兼容性
+
+**问题**：Windows 资源管理器通过 SMB 复制到 NAS 时，文件名超过 255 字节会报错。中文文件名在 UTF-8 下 3 字节/个，按字符数截断（如 80 字符 × 3 字节 = 240 字节）加上日期前缀和扩展名很容易超限。
+
+**解决**：`renderer.py` 的 `safe_name()` 改为按 UTF-8 字节长度截断，默认 160 字节。给日期前缀（~12B）、分隔符（2B）、session ID（9B）、扩展名（~6B）留出余量，确保完整路径的文件名不超过 255 字节。
+
+**测试**：`tests/test_smoke.py` 验证中英文文件名都不超 255 字节。
+
+---
+
+## 系统代理检测
+
+**需求**：Mode A API 请求和文件附件下载需要通过系统代理（中国大陆用户常见）。
+
+**实现代理检测优先级**（`paths.py` 的 `detect_system_proxy()`）：
+1. **Windows**：读注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`，取 `ProxyServer` 字段
+2. **macOS**：`networksetup -getwebproxy "Wi-Fi"` 和 `networksetup -getsecurewebproxy "Wi-Fi"` 读取 HTTP/HTTPS 代理
+3. **Fallback**：环境变量 `HTTP_PROXY` / `HTTPS_PROXY`
+
+返回 `dict[str, str]`（如 `{"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"}`），直接传给 `requests.Session.proxies`。
 
 ---
 

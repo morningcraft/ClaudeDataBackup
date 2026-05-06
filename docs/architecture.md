@@ -116,9 +116,9 @@
 
 ---
 
-### `paths.py` —— 跨平台路径探测
+### `paths.py` —— 跨平台路径探测 + 代理检测
 
-**职责**：把"Claude Desktop 装在哪"、"cookie 在哪"、"Claude Code 会话在哪"这些平台相关的路径抽象掉。
+**职责**：路径抽象 + 系统代理检测。
 
 **主要函数**：
 - `claude_desktop_cache_dir() -> Path` ← Chromium Simple Cache 目录
@@ -126,8 +126,11 @@
 - `claude_desktop_local_state_path() -> Path` ← Local State JSON（Windows 下 cookie 解密要用）
 - `claude_cli_projects_dir() -> Path` ← ~/.claude/projects/
 - `detect_platform() -> Literal["mac", "win", "linux"]`
+- `detect_system_proxy() -> dict[str, str]` ← 返回 requests 兼容的 proxies dict
 
-**不做**：不访问任何文件内容，只做路径拼接 + 存在性检查。
+**代理检测优先级**：Windows 注册表 → macOS networksetup → 环境变量 fallback。
+
+**不做**：路径函数不访问文件内容，只做拼接 + 存在性检查。
 
 ---
 
@@ -235,6 +238,9 @@
 - `list_sessions() -> Iterator[SessionRef]`
 - `parse_session(path: Path) -> SessionData`
 - `categorize(project_dir_name: str) -> "real" | "observer" | None`
+- `iter_sessions(*, skip_observer: bool = False) -> Iterator[SessionData]` —— 流式遍历，可选跳过 observer
+
+**observer 会话**：`claude-mem-observer-sessions` 前缀的目录是 claude-mem 后台监控会话，单机可达 13GB。`main.py` 的 Mode C 默认 `skip_observer=True`，不备份这些会话。
 
 ---
 
@@ -251,7 +257,7 @@
 - `render_desktop_conversation(conv: dict) -> str` —— 网页对话（Mode A/B 共用）
 - `render_cli_session(session: SessionData) -> str` —— CLI 会话
 - `render_content_blocks(blocks: list) -> list[str]` —— 内部 helper，处理 text / thinking / tool_use / tool_result / image
-- `safe_filename(s: str, max_len: int = 80) -> str`
+- `safe_name(s: str, max_bytes: int = 160) -> str` —— 文件系统安全名字，按 UTF-8 字节截断（默认 160 字节，给前缀/后缀/扩展名留余量，确保文件名不超 255 字节，兼容 SMB/NAS）
 
 **中文标签约定**（保留和现有 `raven_memory/claude_export/output/` 一致）：
 - `## 我 ——` / `## Claude ——` / `## 工具返回 ——`
@@ -271,6 +277,8 @@
 
 **输出**：文件保存到 `backup_dir/files/`，`_index.json` 记录 `file_uuid → local_path` 映射。
 
+**代理支持**：API 下载图片/PDF 时自动使用 `paths.detect_system_proxy()` 检测到的系统代理。
+
 **主要函数**：
 - `extract_all_files(backup_dir, session_key, logger) -> dict[str, Path]` —— 返回 file_map
 - `get_file_as_data_uri(file_path) -> str | None` —— 读取本地文件，返回 data URI
@@ -288,6 +296,7 @@
 - 图片以 base64 data URI 内联显示，可点击放大
 - PDF 附件点击在新浏览器标签页打开（利用浏览器原生 PDF 渲染）
 - 文本附件可展开查看
+- PDF 附件使用相对路径（`files/<uuid>.pdf`），备份目录移动后链接不损坏
 - 右侧滚动导航条：每个用户消息对应一个圆点，悬停预览，点击跳转
 - 内嵌 MarkedLite 精简 Markdown 解析器，纯离线可用
 
@@ -411,10 +420,9 @@
 │   ├── 00_index.md
 │   ├── projects/<项目名>/<date>__<title>.md + .json
 │   └── unassigned/<date>__<title>.md + .json
-├── claude-code/               # Mode C
+├── claude-code/               # Mode C（只备份 real 会话，跳过 observer）
 │   ├── 00_index.md
-│   ├── real/<项目>/<date>__<title>.md + .jsonl
-│   └── observer/<项目>/...
+│   └── real/<项目>/<date>__<title>.md + .jsonl
 └── files/                     # 提取的文件附件
     ├── _index.json            # file_uuid → local_path 映射
     ├── <uuid>.pdf             # PDF 文档
