@@ -20,9 +20,11 @@ pyinstaller \
     --name ClaudeDataBackup \
     --icon=assets/app-icon.icns \
     --add-data=assets/app-icon.icns:assets \
+    --add-data=src/claude_data_backup/locales:claude_data_backup/locales \
     --osx-bundle-identifier com.raven940309.ClaudeDataBackup \
     --paths=src \
     --hidden-import=claude_data_backup \
+    --hidden-import=claude_data_backup.i18n \
     --hidden-import=claude_data_backup.log \
     --hidden-import=claude_data_backup.gui \
     --hidden-import=claude_data_backup.main \

@@ -7,6 +7,10 @@ from pathlib import Path
 
 import claude_data_backup
 from claude_data_backup import paths, cookies, renderer, cli_exporter, cache_extractor
+from claude_data_backup.i18n import load_locale
+
+# smoke tests 用中文 locale
+load_locale("zh")
 
 
 def test_version_exists():

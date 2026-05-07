@@ -21,6 +21,7 @@ from typing import Iterable
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
 
+from .i18n import t as _
 from .paths import (
     claude_desktop_cookies_path,
     claude_desktop_local_state_path,
@@ -186,7 +187,7 @@ def get_session_key() -> str | None:
     try:
         rows = _read_encrypted_cookies()
     except (sqlite3.Error, FileNotFoundError) as e:
-        log.debug("get_session_key: 读取 Cookies 失败: %s", e)
+        log.debug(_("cookies.read_error", error=str(e)))
         return None
 
     target = [
@@ -194,7 +195,7 @@ def get_session_key() -> str | None:
         if n == SESSION_KEY_NAME and any(host in h for host in CLAUDE_HOSTS)
     ]
     if not target:
-        log.debug("get_session_key: Cookies 中未找到 sessionKey 条目")
+        log.debug(_("cookies.not_found"))
         return None
 
     platform = detect_platform()
@@ -203,24 +204,24 @@ def get_session_key() -> str | None:
         key = _mac_find_safe_storage_key()
         if not key:
             return None
-        for _, _, enc in target:
+        for _h, _n, enc in target:
             decrypted = _mac_decrypt(enc, key)
             if decrypted:
-                log.info("get_session_key: Mac 解密成功 (长度=%d)", len(decrypted))
+                log.info(_("cookies.mac_decrypt_ok", n=len(decrypted)))
                 return decrypted
-        log.warning("get_session_key: Mac Keychain 有 key 但解密全部失败")
+        log.warning(_("cookies.mac_decrypt_fail"))
         return None
 
     if platform == "win":
         key = _win_load_master_key()
         if not key:
             return None
-        for _, _, enc in target:
+        for _h, _n, enc in target:
             decrypted = _win_decrypt(enc, key)
             if decrypted:
-                log.info("get_session_key: Windows 解密成功 (长度=%d)", len(decrypted))
+                log.info(_("cookies.win_decrypt_ok", n=len(decrypted)))
                 return decrypted
-        log.warning("get_session_key: Windows DPAPI 有 key 但解密全部失败")
+        log.warning(_("cookies.win_decrypt_fail"))
         return None
 
     # Linux：暂不支持

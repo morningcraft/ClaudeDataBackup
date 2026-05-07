@@ -32,6 +32,8 @@ import traceback
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from .i18n import t as _
+
 LOG_DIR = Path.home() / ".claude-data-backup" / "logs"
 LOG_FILE = LOG_DIR / "app.log"
 
@@ -129,15 +131,15 @@ def _log_environment() -> None:
     cwd = os.getcwd()
 
     log.info("=" * 60)
-    log.info("ClaudeDataBackup v%s 启动", app_ver)
+    log.info(_("log.startup", ver=app_ver))
     log.info("=" * 60)
-    log.info("平台:       %s %s", platform.system(), platform.release())
-    log.info("架构:       %s", platform.machine())
-    log.info("Python:     %s", sys.version.split()[0])
-    log.info("可执行文件: %s", exe_path)
-    log.info("打包模式:   %s", "PyInstaller" if bundled else "源码运行")
-    log.info("工作目录:   %s", cwd)
-    log.info("日志文件:   %s", LOG_FILE)
+    log.info("%s: %s %s", _("log.platform"), platform.system(), platform.release())
+    log.info("%s: %s", _("log.arch"), platform.machine())
+    log.info("%s:     %s", _("log.python"), sys.version.split()[0])
+    log.info("%s: %s", _("log.executable"), exe_path)
+    log.info("%s: %s", _("log.bundled_mode"), _("log.bundled") if bundled else _("log.source_run"))
+    log.info("%s: %s", _("log.work_dir"), cwd)
+    log.info("%s: %s", _("log.log_file"), LOG_FILE)
     log.info("sys.argv:   %s", sys.argv)
     log.info("sys.path[0]: %s", sys.path[0] if sys.path else "(empty)")
     log.info("-" * 60)
@@ -149,7 +151,7 @@ def _install_excepthook() -> None:
 
     def _log_excepthook(exc_type, exc_value, exc_tb):
         log = logging.getLogger("crash")
-        log.critical("未捕获异常:", exc_info=(exc_type, exc_value, exc_tb))
+        log.critical(_("log.uncaught_exception") + ":", exc_info=(exc_type, exc_value, exc_tb))
         # 确保 flush
         for handler in logging.getLogger().handlers:
             handler.flush()

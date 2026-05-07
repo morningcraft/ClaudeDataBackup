@@ -9,7 +9,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator, Literal
 
+from .i18n import t as _
+from .log import get_logger
 from .paths import claude_cli_projects_dir_optional
+
+log = get_logger(__name__)
 
 Category = Literal["real", "observer"]
 
@@ -63,7 +67,7 @@ def _derive_title(events: list[dict]) -> str:
                     t = (b.get("text") or "").strip()
                     if t:
                         return t.splitlines()[0]
-    return "(无用户输入)"
+    return _("cli_exporter.no_user_input")
 
 
 def parse_session(path: Path, category: Category, project: str) -> SessionData | None:
@@ -124,8 +128,13 @@ def iter_sessions(*, skip_observer: bool = False) -> Iterator[SessionData]:
     """流式遍历真实会话（和可选的 observer），跳过 diag / mcp-timing。"""
     projects_dir = claude_cli_projects_dir_optional()
     if projects_dir is None:
+        log.warning(_("cli_exporter.no_projects_dir"))
         return
-    for proj_dir in sorted(projects_dir.iterdir()):
+
+    proj_list = sorted(projects_dir.iterdir())
+    log.info(_("cli_exporter.scan_start", dir=str(projects_dir), count=len(proj_list)))
+
+    for proj_dir in proj_list:
         if not proj_dir.is_dir():
             continue
         cat = categorize(proj_dir.name)
@@ -151,6 +160,7 @@ def iter_sessions(*, skip_observer: bool = False) -> Iterator[SessionData]:
         except OSError:
             pass
 
+        log.debug(_("cli_exporter.scan_project", name=project_name, count=len(sessions)))
         for sp in sessions:
             sd = parse_session(sp, cat, project_name)
             if sd:

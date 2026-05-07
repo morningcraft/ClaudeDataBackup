@@ -25,6 +25,7 @@ from typing import Callable
 import requests
 
 from . import paths
+from .i18n import t as _
 from .log import get_logger
 
 log = get_logger(__name__)
@@ -130,7 +131,7 @@ def extract_all_files(backup_dir: Path,
     # 从缓存提取 WebP 预览图（Mode B 的 bonus）
     cached_count = _extract_cached_previews(files_dir, index, api_files)
     if cached_count and logger:
-        logger(f"[文件] 从缓存提取 {cached_count} 张预览图")
+        logger(_("file.cached_previews", count=cached_count))
 
     # API 下载图片和 PDF
     if api_files and session_key:
@@ -140,13 +141,13 @@ def extract_all_files(backup_dir: Path,
         if logger:
             skipped = len([f for f in api_files if f["uuid"] not in index])
             if skipped:
-                logger(f"[文件] 跳过 {skipped} 个文件（需要在线模式下载）")
+                logger(_("file.skip_api", count=skipped))
 
     # 保存索引
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if logger and (total_saved or total_downloaded):
-        logger(f"[文件] 文本附件 {total_saved} 个，API 下载 {total_downloaded} 个")
+        logger(_("file.text_saved", saved=total_saved, downloaded=total_downloaded))
 
     log.info("文件提取完成: 文本=%d, API下载=%d, 缓存预览=%d, 索引总数=%d",
              total_saved, total_downloaded, cached_count, len(index))
@@ -398,7 +399,7 @@ def _download_api_files(api_files: list[dict], files_dir: Path,
             resp = sess.get(url, timeout=30)
             if resp.status_code != 200:
                 if logger:
-                    logger(f"[文件] 下载失败 {name}: HTTP {resp.status_code}")
+                    logger(_("file.download_fail", name=name, code=resp.status_code))
                 continue
 
             content_type = resp.headers.get("content-type", "")
@@ -421,11 +422,11 @@ def _download_api_files(api_files: list[dict], files_dir: Path,
             count += 1
 
             if logger:
-                logger(f"[文件] 已下载 {name} ({len(resp.content) / 1024:.0f} KB)")
+                logger(_("file.downloaded", name=name, size=f"{len(resp.content) / 1024:.0f}"))
 
         except requests.exceptions.RequestException as e:
             if logger:
-                logger(f"[文件] 下载失败 {name}: {e}")
+                logger(_("file.download_fail", name=name, code=str(e)))
 
     return count
 

@@ -21,6 +21,7 @@ from typing import Callable, Iterator
 import brotli
 import zstandard
 
+from .i18n import t as _
 from .log import get_logger
 
 log = get_logger(__name__)
@@ -245,7 +246,7 @@ def extract_conversations(cache_dir: Path,
         old = by_uuid.get(uid)
         if (not old) or len(conv["chat_messages"]) > len(old["chat_messages"]):
             by_uuid[uid] = conv
-    log.info("缓存扫描完成: %d 条对话", len(by_uuid))
+    log.info(_("cache.scan_complete", count=len(by_uuid)))
     return by_uuid
 
 

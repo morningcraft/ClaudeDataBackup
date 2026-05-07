@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .cli_exporter import SessionData
+from .i18n import t as _
 
 _INVALID_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -24,7 +25,7 @@ def safe_name(s: str, max_bytes: int = 160) -> str:
     扩展名(~6B) 留出余量，确保完整路径的文件名不超过 255 字节。
     """
     if not s:
-        return "未命名"
+        return _("renderer.unnamed")
     s = _INVALID_NAME_CHARS.sub("", s)
     s = s.replace("\n", " ").strip()
     s = re.sub(r"\s+", " ", s)
@@ -37,7 +38,7 @@ def safe_name(s: str, max_bytes: int = 160) -> str:
         while truncated and (truncated[-1] & 0xC0) == 0x80:
             truncated = truncated[:-1]
         s = truncated.decode("utf-8", errors="ignore") + "…"
-    return s or "未命名"
+    return s or _("renderer.unnamed")
 
 
 def iso_to_date(s: Any) -> str:
@@ -54,7 +55,7 @@ def iso_to_date(s: Any) -> str:
 def truncate_for_md(s: str, limit: int = 2000) -> str:
     if len(s) <= limit:
         return s
-    return s[:limit] + f"\n\n……（已截断 {len(s) - limit} 字符）"
+    return s[:limit] + "\n\n" + _("renderer.truncated", n=len(s) - limit)
 
 
 def hardlink_or_copy(src: Path, dst: Path) -> None:
@@ -91,14 +92,14 @@ def _render_blocks(blocks: Any) -> list[str]:
         elif t == "thinking":
             t2 = (c.get("thinking") or "").strip()
             if t2:
-                out.append("> **[思考]**\n>\n> " + t2.replace("\n", "\n> "))
+                out.append("> **[" + _("renderer.thinking") + "]**\n>\n> " + t2.replace("\n", "\n> "))
         elif t == "tool_use":
             name = c.get("name", "tool")
             inp = c.get("input") or {}
             msg = c.get("message") or ""
             body = json.dumps(inp, ensure_ascii=False, indent=2)
             tid = c.get("id", "")
-            header = f"**[工具调用：{name}]**" + (f" —— {msg}" if msg else "") + (f" `{tid}`" if tid else "")
+            header = f"**[{_('renderer.tool_call', name=name)}]**" + (f" —— {msg}" if msg else "") + (f" `{tid}`" if tid else "")
             out.append(f"{header}\n\n```json\n{truncate_for_md(body, 1500)}\n```")
         elif t == "tool_result":
             tid = c.get("tool_use_id", "")
@@ -111,7 +112,7 @@ def _render_blocks(blocks: Any) -> list[str]:
                         if i.get("type") == "text":
                             parts.append(i.get("text", ""))
                         elif i.get("type") == "image":
-                            parts.append("[图片已省略]")
+                            parts.append("[" + _("renderer.image_omitted") + "]")
                         else:
                             parts.append(json.dumps(i, ensure_ascii=False))
                     else:
@@ -122,12 +123,12 @@ def _render_blocks(blocks: Any) -> list[str]:
             else:
                 body = json.dumps(body_c, ensure_ascii=False) if body_c is not None else ""
             is_err = bool(c.get("is_error"))
-            label = "工具返回" + ("（出错）" if is_err else "")
+            label = _("renderer.tool_result_error") if is_err else _("renderer.tool_result")
             label_full = f"{label}：{name}" if name else label
             prefix = f"**[{label_full}]**" + (f" `{tid}`" if tid else "")
             out.append(f"{prefix}\n\n```\n{truncate_for_md(body, 2000)}\n```")
         elif t == "image":
-            out.append("**[图片]** *（二进制已省略）*")
+            out.append("**[" + _("renderer.image_binary_omitted") + "]** *（binary omitted）*")
         else:
             out.append(f"**[{t}]** `{json.dumps(c, ensure_ascii=False)[:400]}`")
     return out
@@ -136,8 +137,8 @@ def _render_blocks(blocks: Any) -> list[str]:
 # ---------- Desktop conversation (Mode A / Mode B) ----------
 
 def render_desktop_conversation(conv: dict, source: str) -> str:
-    """渲染一条 claude.ai 对话。source 取值 `"在线 API（完整）"` / `"缓存残骸（可能不完整）"`。"""
-    name = conv.get("name") or "(未命名)"
+    """渲染一条 claude.ai 对话。"""
+    name = conv.get("name") or _("renderer.unnamed")
     created = conv.get("created_at") or ""
     updated = conv.get("updated_at") or ""
     model = conv.get("model") or ""
@@ -147,21 +148,24 @@ def render_desktop_conversation(conv: dict, source: str) -> str:
     summary = conv.get("summary") or ""
     messages = conv.get("chat_messages") or []
 
+    role_me = _("renderer.role_me")
+    role_claude = _("renderer.role_claude")
+
     lines = [f"# {name}", ""]
     lines.append("| | |")
     lines.append("|---|---|")
-    lines.append(f"| 数据来源 | {source} |")
-    lines.append(f"| UUID | `{uuid}` |")
-    lines.append(f"| 创建时间 | {created} |")
-    lines.append(f"| 更新时间 | {updated} |")
-    lines.append(f"| 模型 | `{model}` |")
-    lines.append(f"| 平台 | {platform} |")
+    lines.append(f"| {_('renderer.field_source')} | {source} |")
+    lines.append(f"| {_('renderer.field_uuid')} | `{uuid}` |")
+    lines.append(f"| {_('renderer.field_created')} | {created} |")
+    lines.append(f"| {_('renderer.field_updated')} | {updated} |")
+    lines.append(f"| {_('renderer.field_model')} | `{model}` |")
+    lines.append(f"| {_('renderer.field_platform')} | {platform} |")
     if project:
-        lines.append(f"| 项目 | {project} |")
-    lines.append(f"| 消息数 | {len(messages)} |")
+        lines.append(f"| {_('renderer.field_project')} | {project} |")
+    lines.append(f"| {_('renderer.field_message_count')} | {len(messages)} |")
     if summary:
         lines.append("")
-        lines.append(f"**摘要：** {summary}")
+        lines.append(f"**{_('renderer.summary_label')}：** {summary}")
     lines.append("")
     lines.append("---")
     lines.append("")
@@ -169,7 +173,7 @@ def render_desktop_conversation(conv: dict, source: str) -> str:
     for m in messages:
         sender = m.get("sender")
         ts = m.get("created_at", "")
-        role = {"human": "我", "assistant": "Claude"}.get(sender, sender or "?")
+        role = {"human": role_me, "assistant": role_claude}.get(sender, sender or "?")
         lines.append(f"## {role} —— {ts}")
         lines.append("")
         blocks = _render_blocks(m.get("content"))
@@ -180,13 +184,13 @@ def render_desktop_conversation(conv: dict, source: str) -> str:
         atts = m.get("attachments") or []
         files = m.get("files") or []
         if atts or files:
-            lines.append("**附件：**")
+            lines.append(f"**{_('renderer.attachment_label')}：**")
             for a in atts:
-                nm = a.get("file_name") or a.get("name") or "(文件)"
+                nm = a.get("file_name") or a.get("name") or f"({_('renderer.file_label')})"
                 ext = a.get("extracted_content")
-                lines.append(f"- `{nm}`" + (f" —— 提取了 {len(ext)} 字符" if ext else ""))
+                lines.append(f"- `{nm}`" + (f" —— {_('renderer.extracted_chars', n=len(ext))}" if ext else ""))
             for f in files:
-                nm = f.get("file_name") or f.get("name") or f.get("file_uuid") or "(文件)"
+                nm = f.get("file_name") or f.get("name") or f.get("file_uuid") or f"({_('renderer.file_label')})"
                 lines.append(f"- `{nm}`")
             lines.append("")
         lines.append("")
@@ -210,19 +214,24 @@ _NOISE_ATTACHMENT_TYPES = {
 
 
 def render_cli_session(session: SessionData) -> str:
+    role_me = _("renderer.role_me")
+    role_claude = _("renderer.role_claude")
+    tool_result = _("renderer.tool_result_heading")
+    attachment_label = _("renderer.attachment_label")
+
     lines = [f"# {session.title}", ""]
     lines.append("| | |")
     lines.append("|---|---|")
-    lines.append(f"| 数据来源 | CLI 本地日志（完整） |")
-    lines.append(f"| 会话 ID | `{session.session_id}` |")
-    lines.append(f"| 工作目录 | `{session.cwd}` |")
-    lines.append(f"| 开始时间 | {session.first_ts or ''} |")
-    lines.append(f"| 最后活动 | {session.last_ts or ''} |")
-    lines.append(f"| 模型 | `{session.model}` |")
-    lines.append(f"| CLI 版本 | `{session.version}` |")
-    lines.append(f"| 用户轮数 | {session.user_turns} |")
-    lines.append(f"| 助手轮数 | {session.assistant_turns} |")
-    lines.append(f"| 事件总数 | {session.total_events} |")
+    lines.append(f"| {_('renderer.field_source')} | {_('renderer.source_cli_full')} |")
+    lines.append(f"| {_('renderer.field_session_id')} | `{session.session_id}` |")
+    lines.append(f"| {_('renderer.field_work_dir')} | `{session.cwd}` |")
+    lines.append(f"| {_('renderer.field_start_time')} | {session.first_ts or ''} |")
+    lines.append(f"| {_('renderer.field_last_activity')} | {session.last_ts or ''} |")
+    lines.append(f"| {_('renderer.field_model')} | `{session.model}` |")
+    lines.append(f"| {_('renderer.field_cli_version')} | `{session.version}` |")
+    lines.append(f"| {_('renderer.field_user_turns')} | {session.user_turns} |")
+    lines.append(f"| {_('renderer.field_assistant_turns')} | {session.assistant_turns} |")
+    lines.append(f"| {_('renderer.field_total_events')} | {session.total_events} |")
     lines.append("")
     lines.append("---")
     lines.append("")
@@ -236,7 +245,7 @@ def render_cli_session(session: SessionData) -> str:
             blocks = _render_blocks(content)
             if not blocks:
                 continue
-            heading = "工具返回" if _is_tool_result_only(content) else "我"
+            heading = tool_result if _is_tool_result_only(content) else role_me
             lines.append(f"## {heading} —— {ts}")
             lines.append("")
             lines.extend(blocks)
@@ -247,7 +256,7 @@ def render_cli_session(session: SessionData) -> str:
             blocks = _render_blocks(msg.get("content"))
             if not blocks:
                 continue
-            lines.append(f"## Claude —— `{m}` —— {ts}")
+            lines.append(f"## {role_claude} —— `{m}` —— {ts}")
             lines.append("")
             lines.extend(blocks)
             lines.append("")
@@ -256,13 +265,13 @@ def render_cli_session(session: SessionData) -> str:
             atype = att.get("type")
             if atype in _NOISE_ATTACHMENT_TYPES:
                 continue
-            label = atype or "附件"
+            label = atype or attachment_label
             name = (att.get("name") or att.get("filename") or att.get("path")
                     or e.get("filename") or "")
-            lines.append(f"> **[附件：{label}]** {name}".rstrip())
+            lines.append(f"> **[{_('renderer.attachment_label')}：{label}]** {name}".rstrip())
             lines.append("")
         elif t == "summary":
-            lines.append(f"> **[摘要]** {e.get('summary', '')}")
+            lines.append(f"> **[{_('renderer.summary_label')}]** {e.get('summary', '')}")
             lines.append("")
         # 跳过：permission-mode / file-history-snapshot / system / last-prompt / queue-operation
     return "\n".join(lines)
@@ -273,67 +282,67 @@ def render_cli_session(session: SessionData) -> str:
 def render_top_index(stats: dict, when: str) -> str:
     """顶层 INDEX.md。stats 由 main.py 填充。"""
     lines = [
-        "# Claude 对话归档",
+        f"# {_('renderer.index_title')}",
         "",
-        f"导出时间：{when}。",
-        f"导出来源：{stats.get('source_platform', '-')}。",
+        f"{_('renderer.index_export_time')}：{when}。",
+        f"{_('renderer.index_source')}：{stats.get('source_platform', '-')}。",
         "",
-        "## 数量概览",
+        f"## {_('renderer.index_overview')}",
         "",
     ]
     ma = stats.get("mode_a", {})
     mb = stats.get("mode_b", {})
     mc = stats.get("mode_c", {})
+    reason_not_run = _("renderer.reason_not_run")
 
     if ma.get("status") == "ok":
-        lines.append(f"- **Mode A · 在线 API 全量**：{ma.get('count', 0)} 条（完整）")
+        lines.append(_("renderer.mode_a_ok", count=ma.get('count', 0)))
     else:
-        lines.append(f"- Mode A · 在线 API 全量：跳过（{ma.get('reason', '未运行')}）")
+        lines.append(_("renderer.mode_a_skip", reason=ma.get('reason', reason_not_run)))
 
     if mb.get("status") == "ok":
-        extra = f"（其中 {mb.get('new_unique_to_b', 0)} 条是 A 没拿到的）" if ma.get("status") == "ok" else ""
-        lines.append(f"- **Mode B · 缓存残骸**：{mb.get('cached_total', 0)} 条{extra}")
+        extra = _("renderer.mode_b_new_unique", n=mb.get('new_unique_to_b', 0)) if ma.get("status") == "ok" else ""
+        lines.append(_("renderer.mode_b_ok", count=mb.get('cached_total', 0)) + extra)
     else:
-        lines.append(f"- Mode B · 缓存残骸：跳过（{mb.get('reason', '未运行')}）")
+        lines.append(_("renderer.mode_b_skip", reason=mb.get('reason', reason_not_run)))
 
     if mc.get("status") == "ok":
-        lines.append(f"- **Mode C · Claude Code 本地日志**："
-                     f"{mc.get('real', 0)} 个真实会话 + {mc.get('observer', 0)} 个观察器会话")
+        lines.append(_("renderer.mode_c_ok", real=mc.get('real', 0), observer=mc.get('observer', 0)))
     else:
-        lines.append(f"- Mode C · Claude Code 本地日志：跳过（{mc.get('reason', '未运行')}）")
+        lines.append(_("renderer.mode_c_skip", reason=mc.get('reason', reason_not_run)))
 
     lines += [
         "",
-        "## 从哪里开始读",
+        f"## {_('renderer.index_where_to_read')}",
         "",
         "- [`desktop-conversations/00_index.md`](desktop-conversations/00_index.md) —— "
-        "claude.ai 网页对话索引（Mode A + Mode B 合并）。",
+        + _("renderer.index_desktop_link"),
         "- [`claude-code/real/00_index.md`](claude-code/real/00_index.md) —— "
-        "真实 Claude Code 项目会话索引。",
+        + _("renderer.index_real_link"),
         "- [`claude-code/observer/00_index.md`](claude-code/observer/00_index.md) —— "
-        "claude-mem 观察器自动产生的会话索引。",
-        "- [`STATS.md`](STATS.md) —— 本次运行的详细统计。",
+        + _("renderer.index_observer_link"),
+        "- [`STATS.md`](STATS.md) —— " + _("renderer.index_stats_link"),
         "",
-        "## 每条对话的格式",
+        f"## {_('renderer.index_format_title')}",
         "",
-        "- `<日期>__<标题>.md` —— 人类可读。思考块 `> **[思考]**`；工具调用/返回包装在代码块里；",
-        "  超过约 2000 字符的工具返回在 Markdown 里会被截断，但在备份里保留完整内容。",
-        "- `<日期>__<标题>.json`（Desktop）或 `.jsonl`（CLI）—— 机器可读的原始数据。",
+        "- `<date>__<title>.md` —— " + _("renderer.index_format_md"),
+        "  " + _("renderer.index_format_overflow"),
+        "- `<date>__<title>.json` (Desktop) or `.jsonl` (CLI) —— " + _("renderer.index_format_raw"),
         "",
-        "## 隐私",
+        f"## {_('renderer.index_privacy_title')}",
         "",
-        "- 所有数据均从本机读取，未上传任何远程服务器。",
-        "- cookie 和 sessionKey 只在内存里存在，不落盘。",
-        "- 由 [ClaudeDataBackup](https://github.com/Raven940309/ClaudeDataBackup) 生成。",
+        "- " + _("renderer.index_privacy_local"),
+        "- " + _("renderer.index_privacy_cookie"),
+        "- " + _("renderer.index_privacy_generated"),
     ]
     return "\n".join(lines)
 
 
 def render_stats_report(stats: dict, when: str) -> str:
     lines = [
-        "# STATS.md —— 本次运行统计",
+        f"# {_('renderer.stats_title')}",
         "",
-        f"时间：{when}",
+        f"{_('renderer.stats_time')}：{when}",
         "",
         "```json",
         json.dumps(stats, ensure_ascii=False, indent=2, default=str),

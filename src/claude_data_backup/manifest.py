@@ -8,6 +8,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from .i18n import t as _
+
 MANIFEST_FILENAME = "manifest.json"
 
 
@@ -156,7 +158,7 @@ if __name__ == "__main__":
     backup_dir = get_backup_dir()
     m = load_manifest(backup_dir)
     s = summary(m)
-    print(f"清单文件: {_manifest_path(backup_dir)}")
-    print(f"对话数: {s['conversation_count']}")
-    print(f"会话数: {s['session_count']}")
-    print(f"上次备份: {s['last_backup_time']}")
+    print(_("manifest.file_path", path=str(_manifest_path(backup_dir))))
+    print(_("manifest.conv_count", count=s['conversation_count']))
+    print(_("manifest.session_count", count=s['session_count']))
+    print(_("manifest.last_backup", time=s['last_backup_time']))

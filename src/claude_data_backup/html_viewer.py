@@ -15,6 +15,7 @@ from typing import Any, Callable
 from . import manifest as mf
 from . import cli_exporter
 from .file_extractor import get_file_as_data_uri
+from .i18n import t as _, get_language
 
 
 def _json_default(obj: Any) -> str:
@@ -60,7 +61,7 @@ def _load_desktop_conversations(backup_dir: Path,
         last_ts = messages[-1]["ts"] if messages else conv.get("created_at", "")
         results.append({
             "uuid": conv.get("uuid", ""),
-            "title": _strip_html(conv.get("name") or "") or "(未命名)",
+            "title": _strip_html(conv.get("name") or "") or _("renderer.unnamed"),
             "date": _iso_to_date(last_ts),
             "created_at": conv.get("created_at", ""),
             "last_ts": last_ts,
@@ -106,7 +107,7 @@ def _convert_desktop_messages(chat_messages: list[dict],
                         "type": "attachment",
                         "name": file_name,
                         "file_type": "pdf",
-                        "content": f"[PDF 文档: {file_name}]",
+                        "content": f"[{_('html.pdf_document')}: {file_name}]",
                     })
 
         # 处理消息级别的 attachments（文本文件）
@@ -118,7 +119,7 @@ def _convert_desktop_messages(chat_messages: list[dict],
             if extracted:
                 blocks.append({
                     "type": "attachment",
-                    "name": name or "(未命名附件)",
+                    "name": name or _("html.unnamed_attachment"),
                     "file_type": att.get("file_type", ""),
                     "content": extracted,
                 })
@@ -177,13 +178,14 @@ def _parse_content_blocks(content: Any) -> list[dict]:
                                     "data_uri": f"data:{media};base64,{src['data']}",
                                 })
                             else:
-                                text_parts.append("[图片]")
+                                text_parts.append(_("html.image_placeholder"))
                         elif ptype == "knowledge":
                             title = part.get("title", "")
                             url = part.get("url", "")
-                            text_parts.append(f"[知识: {title}]({url})" if url else f"[知识: {title}]")
+                            kp = _("html.knowledge_placeholder", title=title)
+                            text_parts.append(f"[{kp}]({url})" if url else f"[{kp}]")
                         elif ptype == "local_resource":
-                            text_parts.append(f"[文件: {part.get('name', part.get('file_path', ''))}]")
+                            text_parts.append(f"[{_('html.file_placeholder', name=part.get('name', part.get('file_path', '')))}]")
                         else:
                             text_parts.append(f"[{ptype}]")
                 result_content = "\n".join(text_parts)
@@ -285,12 +287,13 @@ def _parse_jsonl_to_session(path: Path, project: str) -> dict | None:
         return None
 
     # 从事件中提取 title
-    title = "(未命名)"
+    unnamed = _("renderer.unnamed")
+    title = unnamed
     for e in events:
         if e.get("type") == "summary" and e.get("summary"):
             title = _strip_html(str(e["summary"]))[:100]
             break
-    if title == "(未命名)":
+    if title == unnamed:
         for e in events:
             if e.get("type") != "user":
                 continue
@@ -339,7 +342,7 @@ def _convert_cli_events(events: list[dict]) -> list[dict]:
             messages.append({
                 "sender": "system",
                 "ts": e.get("timestamp", ""),
-                "blocks": [{"type": "text", "text": f"[摘要] {e.get('summary', '')}"}],
+                "blocks": [{"type": "text", "text": _("html.summary_placeholder", text=e.get('summary', ''))}],
             })
             continue
 
@@ -373,7 +376,7 @@ def generate_html(backup_dir: Path, logger: Callable[[str], None] | None = None,
                   file_map: dict[str, Path] | None = None) -> Path:
     """扫描备份目录，生成 index.html。返回 HTML 文件路径。"""
     if logger:
-        logger("[HTML] 生成聊天记录查看器 ...")
+        logger(_("html.generating"))
 
     # 采集数据
     convs = _load_desktop_conversations(backup_dir, file_map=file_map)
@@ -395,17 +398,37 @@ def generate_html(backup_dir: Path, logger: Callable[[str], None] | None = None,
     # 用 base64 编码避免 JSON 中的特殊字符（反斜杠、</script> 等）破坏 HTML/JS 上下文
     data_b64 = base64.b64encode(data_json.encode("utf-8")).decode("ascii")
 
+    # 构建 I18N JSON 供 JS 使用
+    i18n_keys = [
+        "html.source_online", "html.source_cache", "html.source_cli",
+        "html.msg_count", "html.meta_project", "html.meta_model",
+        "html.meta_messages", "html.role_system", "html.thinking_summary",
+        "html.tool_call_label", "html.tool_result_label",
+        "html.tool_result_error_label", "html.image_alt", "html.pdf_alt",
+        "html.pdf_open_hint", "html.attachment_label", "html.doc_fallback",
+        "html.tooltip_user_msg", "html.locale_tag",
+        "renderer.role_me", "renderer.role_claude",
+    ]
+    i18n_json = json.dumps({k: _(k) for k in i18n_keys}, ensure_ascii=False)
+
     html = _HTML_TEMPLATE.replace("__DATA_PLACEHOLDER__", data_b64)
-    html = html.replace("__TOTAL_COUNT__", str(len(all_items)))
-    html = html.replace("__AI_COUNT__", str(len(convs)))
-    html = html.replace("__CC_COUNT__", str(len(sessions)))
+    html = html.replace("__I18N_PLACEHOLDER__", i18n_json)
+    html = html.replace("__HTML_LANG__", _("html.html_lang"))
+    html = html.replace("__HTML_TITLE__", _("html.viewer_title"))
+    html = html.replace("__SIDEBAR_HEADING__", _("html.sidebar_heading"))
+    html = html.replace("__SIDEBAR_SUBTITLE__",
+                        _("html.sidebar_subtitle", total=len(all_items),
+                          ai=len(convs), cc=len(sessions)))
+    html = html.replace("__SEARCH_PLACEHOLDER__", _("html.search_placeholder"))
+    html = html.replace("__FILTER_ALL__", _("html.filter_all"))
+    html = html.replace("__EMPTY_STATE__", _("html.empty_state"))
 
     out_path = backup_dir / "index.html"
     out_path.write_text(html, encoding="utf-8")
 
     if logger:
-        logger(f"[HTML] 已生成 index.html（{len(all_items)} 条对话，"
-               f"{out_path.stat().st_size / 1024:.0f} KB）")
+        size_kb = out_path.stat().st_size / 1024
+        logger(_("html.generated", count=len(all_items), size=f"{size_kb:.0f}"))
 
     return out_path
 
@@ -413,11 +436,11 @@ def generate_html(backup_dir: Path, logger: Callable[[str], None] | None = None,
 # ---------- HTML 模板 ----------
 
 _HTML_TEMPLATE = r'''<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="__HTML_LANG__">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ClaudeDataBackup 聊天记录查看器</title>
+<title>__HTML_TITLE__</title>
 <style>
 :root {
   --bg: #f8f9fa;
@@ -886,14 +909,14 @@ body {
 
 <div id="sidebar">
   <div id="sidebar-header">
-    <h1>ClaudeDataBackup 聊天记录</h1>
-    <div class="subtitle">共 __TOTAL_COUNT__ 条对话（Claude.ai: __AI_COUNT__ / Claude Code: __CC_COUNT__）</div>
+    <h1>__SIDEBAR_HEADING__</h1>
+    <div class="subtitle">__SIDEBAR_SUBTITLE__</div>
   </div>
   <div id="search-box">
-    <input type="text" id="search-input" placeholder="搜索对话标题 ...">
+    <input type="text" id="search-input" placeholder="__SEARCH_PLACEHOLDER__">
   </div>
   <div id="filter-bar">
-    <button class="filter-btn active" data-filter="all">全部</button>
+    <button class="filter-btn active" data-filter="all">__FILTER_ALL__</button>
     <button class="filter-btn" data-filter="ai">Claude.ai</button>
     <button class="filter-btn" data-filter="cli">Claude Code</button>
   </div>
@@ -906,7 +929,7 @@ body {
     <div class="meta-line" id="header-meta"></div>
   </div>
   <div id="messages-container">
-    <div class="empty-state" id="empty-state">← 选择左侧对话查看内容</div>
+    <div class="empty-state" id="empty-state">__EMPTY_STATE__</div>
   </div>
 </div>
 
@@ -916,6 +939,9 @@ body {
   <div class="tooltip-text"></div>
 </div>
 
+<script>
+const I18N = __I18N_PLACEHOLDER__;
+</script>
 <script>
 // ---- 数据（base64 编码，避免特殊字符破坏 HTML） ----
 function _decodeB64(b64) {
@@ -1000,20 +1026,20 @@ function formatDate(ts) {
   if (!ts) return '';
   const d = new Date(ts);
   if (isNaN(d.getTime())) return ts.slice(0, 10);
-  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  return d.toLocaleDateString(I18N["html.locale_tag"], { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
 function formatTime(ts) {
   if (!ts) return '';
   const d = new Date(ts);
   if (isNaN(d.getTime())) return ts;
-  return d.toLocaleString('zh-CN');
+  return d.toLocaleString(I18N["html.locale_tag"]);
 }
 
 function sourceLabel(source) {
-  if (source === 'online_api') return '<span class="source-tag ai">在线</span>';
-  if (source === 'cache') return '<span class="source-tag cache">缓存</span>';
-  return '<span class="source-tag cli">CLI</span>';
+  if (source === 'online_api') return '<span class="source-tag ai">' + I18N["html.source_online"] + '</span>';
+  if (source === 'cache') return '<span class="source-tag cache">' + I18N["html.source_cache"] + '</span>';
+  return '<span class="source-tag cli">' + I18N["html.source_cli"] + '</span>';
 }
 
 function sourceFilterKey(source) {
@@ -1038,7 +1064,7 @@ function renderList() {
       <div class="conv-meta">
         ${sourceLabel(item.source)}
         <span>${formatDate(item.date)}</span>
-        <span>${item.messageCount} 条</span>
+        <span>${I18N["html.msg_count"].replace("{n}", item.messageCount)}</span>
         <span>${_escHtml(item.model)}</span>
       </div>
     </div>`;
@@ -1071,10 +1097,10 @@ function selectItem(uuid) {
   const header = document.getElementById('content-header');
   header.style.display = 'block';
   document.getElementById('header-title').textContent = item.title;
-  const proj = item.project ? `<span>项目: ${_escHtml(item.project)}</span>` : '';
+  const proj = item.project ? `<span>${I18N["html.meta_project"]}: ${_escHtml(item.project)}</span>` : '';
   document.getElementById('header-meta').innerHTML = `
-    <span>模型: ${_escHtml(item.model)}</span>
-    <span>消息: ${item.messageCount} 条</span>
+    <span>${I18N["html.meta_model"]}: ${_escHtml(item.model)}</span>
+    <span>${I18N["html.meta_messages"]}: ${I18N["html.msg_count"].replace("{n}", item.messageCount)}</span>
     ${proj}
     <span>${formatDate(item.date)}</span>
   `;
@@ -1149,7 +1175,7 @@ function buildScrollNav() {
     dot.addEventListener('mouseenter', () => {
       const rect = dot.getBoundingClientRect();
       tooltip.style.top = (rect.top - 10) + 'px';
-      tooltip.querySelector('.tooltip-label').textContent = '用户消息 #' + (i + 1);
+      tooltip.querySelector('.tooltip-label').textContent = I18N["html.tooltip_user_msg"] + (i + 1);
       tooltip.querySelector('.tooltip-text').textContent = preview;
       tooltip.classList.add('show');
     });
@@ -1230,7 +1256,7 @@ function buildScrollNav() {
 
 function renderMessage(msg) {
   const cls = msg.sender === 'human' ? 'human' : msg.sender === 'system' ? 'system' : 'assistant';
-  const label = msg.sender === 'human' ? '我' : msg.sender === 'system' ? '系统' : 'Claude';
+  const label = msg.sender === 'human' ? I18N["renderer.role_me"] : msg.sender === 'system' ? I18N["html.role_system"] : I18N["renderer.role_claude"];
   const ts = formatTime(msg.ts);
 
   const body = msg.blocks.map(renderBlock).join('');
@@ -1247,7 +1273,7 @@ function renderBlock(block) {
       return MarkedLite.parse(block.text);
     case 'thinking':
       return `<details class="thinking-block">
-        <summary>[思考] 点击展开</summary>
+        <summary>${I18N["html.thinking_summary"]}</summary>
         <div class="thinking-content">${_escHtml(block.thinking)}</div>
       </details>`;
     case 'tool_use':
@@ -1255,7 +1281,7 @@ function renderBlock(block) {
       return `<div class="tool-block">
         <div class="tool-header" onclick="this.parentElement.classList.toggle('expanded')">
           <span class="tool-icon">&#9881;</span>
-          [工具调用] ${_escHtml(block.name)}
+          ${I18N["html.tool_call_label"]} ${_escHtml(block.name)}
         </div>
         <div class="tool-content"><pre>${_escHtml(inputStr)}</pre></div>
       </div>`;
@@ -1264,19 +1290,19 @@ function renderBlock(block) {
       return `<div class="tool-block">
         <div class="tool-header" onclick="this.parentElement.classList.toggle('expanded')">
           <span class="tool-icon">&#8635;</span>
-          ${block.is_error ? '[工具返回（出错）]' : '[工具返回]'} ${_escHtml(block.name)}
+          ${block.is_error ? I18N["html.tool_result_error_label"] : I18N["html.tool_result_label"]} ${_escHtml(block.name)}
         </div>
         <div class="tool-content"${errCls}><pre>${_escHtml(block.content)}</pre></div>
       </div>`;
     case 'image':
       if (block.data_uri) {
-        const alt = block.file_name ? _escHtml(block.file_name) : '图片';
+        const alt = block.file_name ? _escHtml(block.file_name) : I18N["html.image_alt"];
         return `<div style="margin:8px 0"><img src="${block.data_uri}" alt="${alt}" style="max-width:100%;max-height:500px;border-radius:6px;cursor:pointer" onclick="window.open(this.src)" title="点击放大"></div>`;
       }
-      return `<p><em>[图片]</em></p>`;
+      return `<p><em>${I18N["html.image_placeholder"]}</em></p>`;
     case 'pdf':
       if (block.rel_path) {
-        const pdfName = block.file_name ? _escHtml(block.file_name) : 'PDF 文档';
+        const pdfName = block.file_name ? _escHtml(block.file_name) : I18N["html.pdf_alt"];
         return `<div style="margin:8px 0">
           <a href="${block.rel_path}" target="_blank" rel="noopener"
              style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#fff;border:1px solid #e0e0e0;border-radius:8px;text-decoration:none;color:#333;font-size:14px;box-shadow:0 1px 3px rgba(0,0,0,0.08);transition:all 0.2s"
@@ -1284,11 +1310,11 @@ function renderBlock(block) {
              onmouseout="this.style.borderColor='#e0e0e0';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
             <span style="font-size:20px">&#128196;</span>
             <span>${pdfName}</span>
-            <span style="font-size:11px;color:#999;margin-left:4px">点击在新标签页打开</span>
+            <span style="font-size:11px;color:#999;margin-left:4px">${I18N["html.pdf_open_hint"]}</span>
           </a>
         </div>`;
       }
-      return `<p><em>[PDF: ${_escHtml(block.file_name || '文档')}]</em></p>`;
+      return `<p><em>[${I18N["html.pdf_alt"]}: ${_escHtml(block.file_name || I18N["html.doc_fallback"])}]</em></p>`;
     case 'attachment':
       const ext = (block.file_type || '').toLowerCase();
       const isText = ['txt','srt','csv','json','xml','yaml','yml','md','py','js','ts','html','css','sh','bat','log'].includes(ext);
@@ -1296,12 +1322,12 @@ function renderBlock(block) {
         return `<div class="tool-block">
           <div class="tool-header" onclick="this.parentElement.classList.toggle('expanded')">
             <span class="tool-icon">&#128196;</span>
-            [附件] ${_escHtml(block.name)} (${ext})
+            ${I18N["html.attachment_label"]} ${_escHtml(block.name)} (${ext})
           </div>
           <div class="tool-content" style="max-height:400px"><pre>${_escHtml(block.content)}</pre></div>
         </div>`;
       }
-      return `<p><em>[附件: ${_escHtml(block.name)}]</em></p>`;
+      return `<p><em>${I18N["html.attachment_label"]}: ${_escHtml(block.name)}</em></p>`;
     default:
       return `<p><em>[${_escHtml(block.type)}]</em></p>`;
   }

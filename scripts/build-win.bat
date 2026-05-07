@@ -21,8 +21,10 @@ pyinstaller ^
     --name ClaudeDataBackup ^
     --icon=assets\app-icon.ico ^
     --add-data=assets\app-icon.ico;assets ^
+    --add-data=src\claude_data_backup\locales;claude_data_backup\locales ^
     --paths=src ^
     --hidden-import=claude_data_backup ^
+    --hidden-import=claude_data_backup.i18n ^
     --hidden-import=claude_data_backup.log ^
     --hidden-import=claude_data_backup.gui ^
     --hidden-import=claude_data_backup.main ^

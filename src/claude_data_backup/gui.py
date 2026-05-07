@@ -16,6 +16,7 @@ import time
 import traceback
 import webbrowser
 from pathlib import Path
+import tkinter
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
@@ -28,6 +29,7 @@ from . import cookies
 from . import cli_exporter
 from . import config as cfg
 from . import manifest as mf
+from .i18n import t as _, init_language, get_language, load_locale, save_language_preference
 from .log import setup_logging, get_logger, log_path
 from .main import run, run_incremental
 
@@ -51,8 +53,8 @@ class App:
         log.info("App.__init__ 开始")
         self.root = root
         self.root.title(f"ClaudeDataBackup v{__version__}")
-        self.root.geometry("800x720")
-        self.root.minsize(700, 580)
+        self.root.geometry("580x720")
+        self.root.minsize(520, 550)
 
         # 设置窗口图标
         self._set_icon()
@@ -93,56 +95,69 @@ class App:
             log.warning("_set_icon 失败: %s", e)
 
     def _build_ui(self) -> None:
-        # 主容器，带滚动
-        self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(0, weight=1)
+        # Modern Apple-inspired card palette (light / dark)
+        CARD_BG = ("#F5F5F7", "#1C1C1E")
+        ACCENT = ("#007AFF", "#0A84FF")
+        ACCENT_HOVER = ("#0056CC", "#0066D6")
+        SECONDARY_BG = ("#E8F2FF", "#152940")
+        SECONDARY_HOVER = ("#D0E4FF", "#1E3555")
 
-        main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=(16, 12))
-        main_frame.grid_columnconfigure(0, weight=1)
+        # 固定布局（不用滚动容器 —— macOS Tk Canvas 不收 MouseWheel）
+        self.main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.main_frame.pack(fill="both", expand=True, padx=20, pady=(16, 12))
+        self.main_frame.grid_columnconfigure(0, weight=1)
 
         row = 0
 
         # ---- 标题 ----
-        title = ctk.CTkLabel(main_frame, text="ClaudeDataBackup",
-                              font=ctk.CTkFont(family=UI_FONT, size=22, weight="bold"))
+        title = ctk.CTkLabel(self.main_frame, text="ClaudeDataBackup",
+                              font=ctk.CTkFont(family=UI_FONT, size=22, weight="bold"),
+                              text_color=ACCENT)
         title.grid(row=row, column=0, sticky="w", pady=(0, 12))
         row += 1
 
         # ---- 环境检测 ----
-        env_frame = ctk.CTkFrame(main_frame)
-        env_frame.grid(row=row, column=0, sticky="ew", pady=(0, 10))
+        env_frame = ctk.CTkFrame(self.main_frame, fg_color=CARD_BG, corner_radius=10)
+        env_frame.grid(row=row, column=0, sticky="ew", pady=(0, 12))
         env_frame.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(env_frame, text="环境检测",
-                      font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold")).grid(
-            row=0, column=0, sticky="w", padx=12, pady=(10, 4))
-        self.env_label = ctk.CTkLabel(env_frame, text="检测中 ...",
-                                       anchor="w", wraplength=700)
-        self.env_label.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 10))
+        ctk.CTkLabel(env_frame, text=_("gui.env_detection"),
+                      font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold"),
+                      text_color=ACCENT).grid(
+            row=0, column=0, sticky="w", padx=14, pady=(12, 6))
+        self.env_label = ctk.CTkLabel(env_frame, text=_("gui.env_detecting"),
+                                       anchor="w", wraplength=680,
+                                       font=ctk.CTkFont(family=UI_FONT, size=13))
+        self.env_label.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 12))
         row += 1
 
         # ---- 备份目录 ----
-        dir_frame = ctk.CTkFrame(main_frame)
-        dir_frame.grid(row=row, column=0, sticky="ew", pady=(0, 10))
+        dir_frame = ctk.CTkFrame(self.main_frame, fg_color=CARD_BG, corner_radius=10)
+        dir_frame.grid(row=row, column=0, sticky="ew", pady=(0, 12))
         dir_frame.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(dir_frame, text="备份目录",
-                      font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold")).grid(
-            row=0, column=0, columnspan=2, sticky="w", padx=12, pady=(10, 4))
+        ctk.CTkLabel(dir_frame, text=_("gui.backup_dir"),
+                      font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold"),
+                      text_color=ACCENT).grid(
+            row=0, column=0, columnspan=2, sticky="w", padx=14, pady=(12, 6))
         self.backup_dir_var = ctk.StringVar(value=str(cfg.get_backup_dir()))
-        ctk.CTkEntry(dir_frame, textvariable=self.backup_dir_var).grid(
-            row=1, column=0, sticky="ew", padx=(12, 4), pady=(0, 10))
-        ctk.CTkButton(dir_frame, text="更改", width=60,
+        ctk.CTkEntry(dir_frame, textvariable=self.backup_dir_var,
+                      font=ctk.CTkFont(family=UI_FONT, size=13)).grid(
+            row=1, column=0, sticky="ew", padx=(14, 6), pady=(0, 12))
+        ctk.CTkButton(dir_frame, text=_("gui.change"), width=70,
+                       font=ctk.CTkFont(family=UI_FONT, size=13),
+                       fg_color=SECONDARY_BG, text_color=ACCENT,
+                       hover_color=SECONDARY_HOVER,
                        command=self._pick_backup_dir).grid(
-            row=1, column=1, padx=(0, 12), pady=(0, 10))
+            row=1, column=1, padx=(0, 14), pady=(0, 12))
         row += 1
 
         # ---- 数据源选择 ----
-        src_frame = ctk.CTkFrame(main_frame)
-        src_frame.grid(row=row, column=0, sticky="ew", pady=(0, 10))
+        src_frame = ctk.CTkFrame(self.main_frame, fg_color=CARD_BG, corner_radius=10)
+        src_frame.grid(row=row, column=0, sticky="ew", pady=(0, 12))
         src_frame.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(src_frame, text="数据源选择",
-                      font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold")).grid(
-            row=0, column=0, sticky="w", padx=12, pady=(10, 4))
+        ctk.CTkLabel(src_frame, text=_("gui.data_source"),
+                      font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold"),
+                      text_color=ACCENT).grid(
+            row=0, column=0, sticky="w", padx=14, pady=(12, 6))
 
         sources = cfg.get_sources()
         self.src_claude_ai = ctk.BooleanVar(value=sources.get("claude_ai", True))
@@ -150,104 +165,148 @@ class App:
 
         # Claude.ai 行
         ai_row = ctk.CTkFrame(src_frame, fg_color="transparent")
-        ai_row.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 4))
+        ai_row.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 4))
         ai_row.grid_columnconfigure(0, weight=1)
-        ctk.CTkCheckBox(ai_row, text="Claude.ai 对话（在线 API + 缓存）",
+        ctk.CTkCheckBox(ai_row, text=_("gui.ai_source_checkbox"),
                          variable=self.src_claude_ai,
-                         checkbox_width=20, checkbox_height=20).grid(
+                         checkbox_width=20, checkbox_height=20,
+                         fg_color=ACCENT,
+                         font=ctk.CTkFont(family=UI_FONT, size=13)).grid(
             row=0, column=0, sticky="w")
-        self.ai_status_label = ctk.CTkLabel(ai_row, text="", text_color=("gray40", "gray70"),
+        self.ai_status_label = ctk.CTkLabel(ai_row, text="", text_color=("gray50", "gray60"),
                                              font=ctk.CTkFont(family=UI_FONT, size=12))
         self.ai_status_label.grid(row=0, column=1, sticky="e")
 
         # Claude Code 行
         cc_row = ctk.CTkFrame(src_frame, fg_color="transparent")
-        cc_row.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 4))
+        cc_row.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 4))
         cc_row.grid_columnconfigure(0, weight=1)
-        ctk.CTkCheckBox(cc_row, text="Claude Code 会话（本地日志）",
+        ctk.CTkCheckBox(cc_row, text=_("gui.cc_source_checkbox"),
                          variable=self.src_claude_code,
-                         checkbox_width=20, checkbox_height=20).grid(
+                         checkbox_width=20, checkbox_height=20,
+                         fg_color=ACCENT,
+                         font=ctk.CTkFont(family=UI_FONT, size=13)).grid(
             row=0, column=0, sticky="w")
-        self.cc_status_label = ctk.CTkLabel(cc_row, text="", text_color=("gray40", "gray70"),
+        self.cc_status_label = ctk.CTkLabel(cc_row, text="", text_color=("gray50", "gray60"),
                                              font=ctk.CTkFont(family=UI_FONT, size=12))
         self.cc_status_label.grid(row=0, column=1, sticky="e")
 
         # Claude Code 项目选择
         self.cc_projects_frame = ctk.CTkFrame(src_frame, fg_color="transparent")
-        self.cc_projects_frame.grid(row=3, column=0, sticky="ew", padx=(36, 12), pady=(0, 8))
+        self.cc_projects_frame.grid(row=3, column=0, sticky="ew", padx=(38, 14), pady=(0, 6))
         self.cc_projects_visible = False
         self.cc_expand_btn = ctk.CTkButton(
-            self.cc_projects_frame, text="展开项目选择 ▸", width=120, height=28,
+            self.cc_projects_frame, text=_("gui.expand_projects"), width=120, height=28,
             font=ctk.CTkFont(family=UI_FONT, size=12), fg_color="transparent",
-            text_color=("gray10", "gray90"), hover_color=("gray85", "gray25"),
+            text_color=ACCENT, hover_color=("gray90", "gray25"),
             command=self._toggle_cc_projects, anchor="w")
         self.cc_expand_btn.pack(anchor="w")
-        self.cc_projects_inner = ctk.CTkFrame(src_frame, fg_color="transparent")
+        # 限高可滚动项目列表（CTkTextbox = macOS 触控板原生 + CTk 视觉风格）
+        is_dark = ctk.get_appearance_mode().lower() == "dark"
+        self.cc_projects_text = ctk.CTkTextbox(
+            src_frame, height=130, wrap="word",
+            border_width=0, corner_radius=6,
+            font=ctk.CTkFont(family=UI_FONT, size=13),
+        )
+        checked_color = ACCENT[1] if is_dark else ACCENT[0]
+        unchecked_color = "#636366" if is_dark else "#8E8E93"
+        self.cc_projects_text._textbox.tag_configure("checked", foreground=checked_color)
+        self.cc_projects_text._textbox.tag_configure("unchecked", foreground=unchecked_color)
+        self.cc_projects_text.bind("<Button-1>", self._on_project_click)
         self._cc_project_vars: list[tuple[str, ctk.BooleanVar]] = []
         row += 1
 
         # ---- 主操作按钮 ----
         self.backup_btn = ctk.CTkButton(
-            main_frame, text="立即备份", height=44,
+            self.main_frame, text=_("gui.backup_now"), height=44,
             font=ctk.CTkFont(family=UI_FONT, size=15, weight="bold"),
+            fg_color=ACCENT, hover_color=ACCENT_HOVER,
             command=self._start_incremental)
         self.backup_btn.grid(row=row, column=0, sticky="ew", pady=(4, 2))
-        ctk.CTkLabel(main_frame, text="增量模式：只下载新的和变化的内容",
-                      text_color=("gray40", "gray70"), font=ctk.CTkFont(family=UI_FONT, size=12)).grid(
-            row=row + 1, column=0, sticky="w", pady=(0, 8))
+        ctk.CTkLabel(self.main_frame, text=_("gui.incremental_hint"),
+                      text_color=("gray50", "gray60"),
+                      font=ctk.CTkFont(family=UI_FONT, size=12)).grid(
+            row=row + 1, column=0, sticky="w", pady=(0, 12))
         row += 2
 
         # ---- 次操作按钮 ----
-        btn_row = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_row.grid(row=row, column=0, sticky="ew", pady=(0, 10))
+        btn_row = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        btn_row.grid(row=row, column=0, sticky="ew", pady=(0, 12))
 
         self.view_btn = ctk.CTkButton(
-            btn_row, text="查看聊天记录", width=120, height=32,
+            btn_row, text=_("gui.view_chat"), width=120, height=32,
             font=ctk.CTkFont(family=UI_FONT, size=13), state="disabled",
+            fg_color=SECONDARY_BG, text_color=ACCENT, hover_color=SECONDARY_HOVER,
             command=self._open_viewer)
         self.view_btn.pack(side="left")
 
         self.export_btn = ctk.CTkButton(
-            btn_row, text="导出完整副本", width=120, height=32,
+            btn_row, text=_("gui.export_full"), width=120, height=32,
             font=ctk.CTkFont(family=UI_FONT, size=13),
+            fg_color=SECONDARY_BG, text_color=ACCENT, hover_color=SECONDARY_HOVER,
             command=self._start_export)
         self.export_btn.pack(side="left", padx=(8, 0))
 
         self.open_btn = ctk.CTkButton(
-            btn_row, text="打开备份目录", width=120, height=32,
+            btn_row, text=_("gui.open_backup_dir"), width=120, height=32,
             font=ctk.CTkFont(family=UI_FONT, size=13), state="disabled",
+            fg_color=SECONDARY_BG, text_color=ACCENT, hover_color=SECONDARY_HOVER,
             command=self._open_backup_dir)
         self.open_btn.pack(side="left", padx=(8, 0))
 
         ctk.CTkButton(
-            btn_row, text="打开日志", width=80, height=32,
+            btn_row, text=_("gui.open_log"), width=80, height=32,
             font=ctk.CTkFont(family=UI_FONT, size=13),
             fg_color="transparent", text_color=("gray10", "gray90"),
             hover_color=("gray85", "gray25"),
             command=self._open_log).pack(side="left", padx=(8, 0))
 
+        # 语言切换按钮
+        lang_label = _("gui.lang_toggle_zh") if get_language() == "zh" else _("gui.lang_toggle_en")
+        self.lang_btn = ctk.CTkButton(
+            btn_row, text=lang_label, width=36, height=32,
+            font=ctk.CTkFont(family=UI_FONT, size=13),
+            fg_color="transparent", text_color=("gray10", "gray90"),
+            hover_color=("gray85", "gray25"),
+            command=self._toggle_language)
+        self.lang_btn.pack(side="right", padx=(0, 8))
+
         ctk.CTkButton(
-            btn_row, text="退出", width=60, height=32,
+            btn_row, text=_("gui.quit"), width=60, height=32,
             font=ctk.CTkFont(family=UI_FONT, size=13),
             fg_color="transparent", text_color=("gray10", "gray90"),
             hover_color=("gray85", "gray25"),
             command=self.root.quit).pack(side="right")
         row += 1
 
+        # 日志行占据所有剩余垂直空间
+        self.main_frame.grid_rowconfigure(row, weight=1)
+
         # ---- 日志 ----
-        log_frame = ctk.CTkFrame(main_frame)
+        log_frame = ctk.CTkFrame(self.main_frame, fg_color=CARD_BG, corner_radius=10)
         log_frame.grid(row=row, column=0, sticky="nsew", pady=(0, 4))
-        main_frame.grid_rowconfigure(row, weight=1)
         log_frame.grid_columnconfigure(0, weight=1)
         log_frame.grid_rowconfigure(1, weight=1)
 
-        ctk.CTkLabel(log_frame, text="日志",
-                      font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold")).grid(
-            row=0, column=0, sticky="w", padx=12, pady=(10, 4))
+        ctk.CTkLabel(log_frame, text=_("gui.log_title"),
+                      font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold"),
+                      text_color=ACCENT).grid(
+            row=0, column=0, sticky="w", padx=14, pady=(12, 4))
 
         self.log_text = ctk.CTkTextbox(log_frame, wrap="word",
                                         font=ctk.CTkFont(family="Consolas", size=12))
-        self.log_text.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 10))
+        self.log_text.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 12))
+
+    # ---------- 语言切换 ----------
+
+    def _toggle_language(self) -> None:
+        """切换中/英语言，重建 UI。偏好仅在备份成功后持久化。"""
+        new_lang = "en" if get_language() == "zh" else "zh"
+        load_locale(new_lang)
+        self.main_frame.destroy()
+        self._build_ui()
+        self._diagnose()
+        self._update_backup_status()
 
     # ---------- 环境诊断 ----------
 
@@ -261,31 +320,31 @@ class App:
         log.debug("paths.report() 完成 (%.3fs)", time.monotonic() - t)
 
         if r.get("claude_desktop_installed"):
-            lines.append("Claude Desktop: 已检测到")
+            lines.append(_("gui.desktop_detected"))
         else:
-            lines.append("Claude Desktop: 未检测到")
+            lines.append(_("gui.desktop_not_detected"))
 
         t = time.monotonic()
         cs = cookies.describe_cookie_state()
         log.debug("cookies.describe_cookie_state() 完成 (%.3fs)", time.monotonic() - t)
         if cs.get("cookies_readable"):
             has_sk = cs.get("has_session_key")
-            lines.append(f"Cookie: 可读（sessionKey={'有' if has_sk else '无'}）")
+            status = _("gui.cookie_has_key") if has_sk else _("gui.cookie_no_key")
+            lines.append(_("gui.cookie_readable", status=status))
         else:
-            lines.append(f"Cookie: 不可读（{cs.get('error', '未知')}）")
+            lines.append(_("gui.cookie_unreadable", error=cs.get('error', _("gui.unknown"))))
 
         proj = paths.claude_cli_projects_dir_optional()
         if proj:
             t = time.monotonic()
             counts = cli_exporter.count_sessions()
             log.debug("cli_exporter.count_sessions() 完成 (%.3fs)", time.monotonic() - t)
-            total_cc = counts["real"] + counts["observer"]
-            lines.append(f"Claude Code: 已检测到（{total_cc} 个会话）")
-            self.cc_status_label.configure(text=f"已检测到 {total_cc} 个会话")
+            lines.append(_("gui.cc_detected", count=counts['real']))
+            self.cc_status_label.configure(text=_("gui.cc_detected", count=counts['real']))
             self._populate_cc_projects(counts)
         else:
-            lines.append("Claude Code: 未检测到")
-            self.cc_status_label.configure(text="未检测到")
+            lines.append(_("gui.cc_not_detected"))
+            self.cc_status_label.configure(text=_("gui.cc_not_detected"))
 
         self.env_label.configure(text="  |  ".join(lines))
         self._update_backup_status()
@@ -295,21 +354,22 @@ class App:
         backup_dir = Path(self.backup_dir_var.get()).expanduser()
         manifest = mf.load_manifest(backup_dir)
         s = mf.summary(manifest)
-        log.debug("_update_backup_status: conv=%d, session=%d", s["conversation_count"], s["session_count"])
+        log.debug("_update_backup_status: conv=%d, session=%d, real=%d",
+                  s["conversation_count"], s["session_count"], s["real_session_count"])
 
         if s["conversation_count"] > 0:
             self.ai_status_label.configure(
-                text=f"已备份 {s['conversation_count']} 条  "
-                     f"上次: {manifest.get('last_backup_time', '-')}")
+                text=_("gui.backup_status", count=s['conversation_count']) + "  "
+                     + _("gui.last_backup", time=manifest.get('last_backup_time', '-')))
         else:
-            self.ai_status_label.configure(text="尚未备份")
+            self.ai_status_label.configure(text=_("gui.not_backed_up"))
 
-        if s["session_count"] > 0:
+        if s["real_session_count"] > 0:
             self.cc_status_label.configure(
-                text=f"已备份 {s['session_count']} 个  "
-                     f"上次: {manifest.get('last_backup_time', '-')}")
+                text=_("gui.backup_status_sessions", count=s['real_session_count']) + "  "
+                     + _("gui.last_backup", time=manifest.get('last_backup_time', '-')))
 
-        has_backup = s["conversation_count"] > 0 or s["session_count"] > 0
+        has_backup = s["conversation_count"] > 0 or s["real_session_count"] > 0
         if has_backup:
             self.open_btn.configure(state="normal")
 
@@ -340,20 +400,40 @@ class App:
 
     def _toggle_cc_projects(self) -> None:
         if self.cc_projects_visible:
-            self.cc_projects_inner.grid_forget()
-            self.cc_expand_btn.configure(text="展开项目选择 ▸")
+            self.cc_projects_text.grid_forget()
+            self.cc_expand_btn.configure(text=_("gui.expand_projects"))
             self.cc_projects_visible = False
         else:
-            self.cc_projects_inner.grid(row=4, column=0, sticky="ew",
-                                         padx=(36, 12), pady=(0, 8))
-            for w in self.cc_projects_inner.winfo_children():
-                w.destroy()
-            for name, var in self._cc_project_vars:
-                ctk.CTkCheckBox(self.cc_projects_inner, text=name,
-                                 variable=var, checkbox_width=18,
-                                 checkbox_height=18).pack(anchor="w", pady=1)
-            self.cc_expand_btn.configure(text="收起项目选择 ▾")
+            # 动态高度：每行约 20px，最少 100px（~5 行），最多 200px
+            n = max(100, min(len(self._cc_project_vars) * 20, 200))
+            self.cc_projects_text.configure(height=n)
+            self.cc_projects_text.grid(row=4, column=0, sticky="ew",
+                                        padx=(38, 14), pady=(0, 6))
+            self._refresh_project_list()
+            self.cc_expand_btn.configure(text=_("gui.collapse_projects"))
             self.cc_projects_visible = True
+
+    def _refresh_project_list(self) -> None:
+        """刷新项目列表显示（☑/☐ + 项目名），勾选标记用主题色区分。"""
+        self.cc_projects_text.configure(state="normal")
+        self.cc_projects_text.delete("1.0", "end")
+        for name, var in self._cc_project_vars:
+            if var.get():
+                self.cc_projects_text.insert("end", "☑  ", "checked")
+            else:
+                self.cc_projects_text.insert("end", "☐  ", "unchecked")
+            self.cc_projects_text.insert("end", f"{name}\n")
+        self.cc_projects_text.configure(state="disabled")
+
+    def _on_project_click(self, event: tkinter.Event) -> None:
+        """点击项目行切换 BooleanVar 并刷新显示。"""
+        index = self.cc_projects_text.index(f"@{event.x},{event.y}")
+        line_num = int(index.split(".")[0])
+        if 1 <= line_num <= len(self._cc_project_vars):
+            _name, var = self._cc_project_vars[line_num - 1]
+            var.set(not var.get())
+            self._refresh_project_list()
+        return "break"
 
     # ---------- 目录选择 ----------
 
@@ -379,16 +459,16 @@ class App:
         self._last_output_dir = backup_dir
         self._set_buttons_busy(True)
         self._clear_log()
-        self._log(f"[备份] 开始增量备份 —— 目录：{backup_dir}，模式：{modes}")
+        self._log(_("gui.log_start_backup", dir=str(backup_dir), modes=modes))
 
         def worker():
             try:
                 run_incremental(backup_dir, modes, self._log)
             except Exception as e:
                 log.error("增量备份失败: %s", e, exc_info=True)
-                self._log(f"[致命错误] {e}")
+                self._log(_("gui.log_fatal_error", error=str(e)))
             finally:
-                self._log("[完成] 备份结束")
+                self._log(_("gui.log_backup_done"))
                 self.root.after(0, self._on_done)
 
         self._worker = threading.Thread(target=worker, daemon=True)
@@ -399,7 +479,7 @@ class App:
         if not modes:
             return
 
-        d = filedialog.askdirectory(title="选择导出目录")
+        d = filedialog.askdirectory(title=_("gui.export_dir_title"))
         if not d:
             return
         output = Path(d) / "ClaudeDataBackup"
@@ -407,16 +487,16 @@ class App:
 
         self._set_buttons_busy(True)
         self._clear_log()
-        self._log(f"[导出] 开始一次性导出 —— 目录：{output}，模式：{modes}")
+        self._log(_("gui.log_start_export", dir=str(output), modes=modes))
 
         def worker():
             try:
                 run(output, modes, self._log)
             except Exception as e:
                 log.error("一次性导出失败: %s", e, exc_info=True)
-                self._log(f"[致命错误] {e}")
+                self._log(_("gui.log_fatal_error", error=str(e)))
             finally:
-                self._log("[完成] 导出结束")
+                self._log(_("gui.log_export_done"))
                 self.root.after(0, lambda: self._on_export_done(output))
 
         self._worker = threading.Thread(target=worker, daemon=True)
@@ -430,7 +510,7 @@ class App:
             modes += "c"
         modes = "".join(sorted(set(modes)))
         if not modes:
-            messagebox.showerror("错误", "至少要勾选一个数据源")
+            messagebox.showerror(_("gui.msgbox_error"), _("gui.msgbox_no_source"))
             return ""
         return modes
 
@@ -450,6 +530,7 @@ class App:
     def _on_done(self) -> None:
         self._set_buttons_busy(False)
         self._update_backup_status()
+        save_language_preference(cfg.get_backup_dir())
 
     def _on_export_done(self, output: Path) -> None:
         self._on_done()
@@ -480,12 +561,12 @@ class App:
                 return
 
         log.warning("_open_viewer: 未找到 index.html, candidates=%s", candidates)
-        messagebox.showwarning("提示", "尚无聊天记录，请先执行备份")
+        messagebox.showwarning(_("gui.msgbox_warning"), _("gui.msgbox_no_chat"))
 
     def _open_backup_dir(self) -> None:
         path = Path(self.backup_dir_var.get()).expanduser()
         if not path.exists():
-            messagebox.showwarning("提示", "备份目录还不存在")
+            messagebox.showwarning(_("gui.msgbox_warning"), _("gui.msgbox_no_backup_dir"))
             return
         self._open_dir(path)
 
@@ -516,7 +597,7 @@ class App:
         """打开日志文件所在目录，选中日志文件。"""
         lp = log_path()
         if not lp.parent.exists():
-            messagebox.showwarning("提示", "日志目录还不存在")
+            messagebox.showwarning(_("gui.msgbox_warning"), _("gui.msgbox_no_log_dir"))
             return
         if sys.platform == "darwin":
             subprocess.Popen(["open", "-R", str(lp)])
@@ -550,6 +631,7 @@ class App:
 
 def main():
     setup_logging()
+    init_language(cfg.get_backup_dir())
     log.info("=== ClaudeDataBackup v%s 启动 ===", __version__)
     log.info("平台: %s, Python: %s, 打包: %s",
              sys.platform, sys.version.split()[0], hasattr(sys, "_MEIPASS"))

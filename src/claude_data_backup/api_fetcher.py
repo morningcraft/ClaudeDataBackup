@@ -11,6 +11,7 @@ from typing import Callable, Iterator
 import requests
 
 from . import paths
+from .i18n import t as _
 
 API_BASE = "https://claude.ai/api"
 USER_AGENT = (
@@ -55,7 +56,7 @@ class ApiFetcher:
                     backoff *= 2
                     continue
                 if resp.status_code == 401 or resp.status_code == 403:
-                    raise ApiError(f"认证失败（{resp.status_code}）——sessionKey 无效或账号已封")
+                    raise ApiError(_("api.auth_fail", code=resp.status_code))
                 if resp.status_code >= 500:
                     time.sleep(min(backoff, 30))
                     backoff *= 2
@@ -64,10 +65,10 @@ class ApiFetcher:
                 return resp.json()
             except requests.exceptions.RequestException as e:
                 if attempt == retries - 1:
-                    raise ApiError(f"请求 {url} 失败: {e}") from e
+                    raise ApiError(_("api.request_fail", url=url, error=str(e))) from e
                 time.sleep(min(backoff, 30))
                 backoff *= 2
-        raise ApiError(f"请求 {url} 失败（超出重试次数）")
+        raise ApiError(_("api.max_retries", url=url))
 
     # ---------- 公共 API ----------
 
@@ -112,7 +113,7 @@ class ApiFetcher:
         )
         r = self._get(path)
         if not isinstance(r, dict):
-            raise ApiError(f"fetch_conversation 返回非 dict: {type(r)}")
+            raise ApiError(_("api.fetch_error", type=type(r)))
         return r
 
     # ---------- 流式抓取全量 ----------
@@ -144,7 +145,7 @@ class ApiFetcher:
             if not uuid:
                 continue
             if progress:
-                progress(idx, total, meta.get("name", "(未命名)"))
+                progress(idx, total, meta.get("name", _("renderer.unnamed")))
 
             # 增量跳过：已备份且未更新的对话直接跳过
             if skip_map and uuid in skip_map:
@@ -187,11 +188,11 @@ if __name__ == "__main__":
     from .cookies import get_session_key
     sk = get_session_key()
     if not sk:
-        print("没拿到 sessionKey，退出")
+        print(_("api.no_key"))
         raise SystemExit(1)
     f = ApiFetcher(sk)
     if not f.probe():
-        print("sessionKey 无效或账号不可用")
+        print(_("api.invalid_key"))
         raise SystemExit(1)
     orgs = f.list_organizations()
     print(f"organizations: {len(orgs)}")
