@@ -543,8 +543,8 @@ def run_incremental(backup_dir: Path, modes: str,
 
 
 def main():
-    setup_logging()
     init_language(cfg.get_backup_dir())
+    setup_logging()
     log.info("=== ClaudeDataBackup CLI v%s 启动 ===", __version__)
 
     # Windows cmd 默认 GBK 编码，中文输出会乱码

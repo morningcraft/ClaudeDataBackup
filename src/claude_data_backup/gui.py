@@ -630,8 +630,8 @@ class App:
 
 
 def main():
-    setup_logging()
     init_language(cfg.get_backup_dir())
+    setup_logging()
     log.info("=== ClaudeDataBackup v%s 启动 ===", __version__)
     log.info("平台: %s, Python: %s, 打包: %s",
              sys.platform, sys.version.split()[0], hasattr(sys, "_MEIPASS"))
