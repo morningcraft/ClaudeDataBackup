@@ -109,11 +109,24 @@ class App:
 
         row = 0
 
-        # ---- 标题 ----
-        title = ctk.CTkLabel(self.main_frame, text="ClaudeDataBackup",
-                              font=ctk.CTkFont(family=UI_FONT, size=22, weight="bold"),
-                              text_color=ACCENT)
-        title.grid(row=row, column=0, sticky="w", pady=(0, 12))
+        # ---- 标题行（标题 + 语言切换） ----
+        header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        header_frame.grid(row=row, column=0, sticky="ew", pady=(0, 12))
+        header_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(header_frame, text="ClaudeDataBackup",
+                      font=ctk.CTkFont(family=UI_FONT, size=22, weight="bold"),
+                      text_color=ACCENT).grid(row=0, column=0, sticky="w")
+
+        lang_label = _("gui.lang_toggle_zh") if get_language() == "zh" else _("gui.lang_toggle_en")
+        self.lang_btn = ctk.CTkButton(
+            header_frame, text=lang_label,
+            width=80, height=32,
+            font=ctk.CTkFont(family=UI_FONT, size=14),
+            fg_color="transparent", text_color=("gray10", "gray90"),
+            hover_color=("gray85", "gray25"),
+            command=self._toggle_language)
+        self.lang_btn.grid(row=0, column=1, sticky="e")
         row += 1
 
         # ---- 环境检测 ----
@@ -260,16 +273,6 @@ class App:
             fg_color="transparent", text_color=("gray10", "gray90"),
             hover_color=("gray85", "gray25"),
             command=self._open_log).pack(side="left", padx=(8, 0))
-
-        # 语言切换按钮
-        lang_label = _("gui.lang_toggle_zh") if get_language() == "zh" else _("gui.lang_toggle_en")
-        self.lang_btn = ctk.CTkButton(
-            btn_row, text=lang_label, width=36, height=32,
-            font=ctk.CTkFont(family=UI_FONT, size=13),
-            fg_color="transparent", text_color=("gray10", "gray90"),
-            hover_color=("gray85", "gray25"),
-            command=self._toggle_language)
-        self.lang_btn.pack(side="right", padx=(0, 8))
 
         ctk.CTkButton(
             btn_row, text=_("gui.quit"), width=60, height=32,

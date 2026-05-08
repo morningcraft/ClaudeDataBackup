@@ -17,8 +17,8 @@
   "gui.open_log": "打开日志",
   "gui.quit": "退出",
   "gui.log_title": "日志",
-  "gui.lang_toggle_zh": "EN",
-  "gui.lang_toggle_en": "中",
+  "gui.lang_toggle_zh": "English",
+  "gui.lang_toggle_en": "中文",
 
   "gui.desktop_detected": "Claude Desktop: 已检测到",
   "gui.desktop_not_detected": "Claude Desktop: 未检测到",

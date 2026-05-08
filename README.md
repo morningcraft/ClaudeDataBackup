@@ -44,35 +44,9 @@ For daily use, Mode A with incremental backup is enough. Mode B and C are for re
 
 ### GUI walkthrough
 
-After launching, you'll see:
+![ClaudeDataBackup English UI](screenshots/gui-en.png)
 
-```
-┌─ ClaudeDataBackup v0.1.0 ─────────────────────┐
-│                                                 │
-│ Environment Check                               │
-│ Claude Desktop: Found | Cookie: Readable | ...  │
-│                                                 │
-│ Backup Directory                                │
-│ [~/Documents/ClaudeDataBackup    ] [Change]     │
-│                                                 │
-│ Data Sources                                    │
-│ ☑ Claude.ai (Live API + Cache)     40 backed up │
-│ ☑ Claude Code (Local logs)         43 backed up │
-│   ▸ Expand project selection                    │
-│                                                 │
-│ [        Backup Now (Incremental)     ]         │
-│ Incremental: only download new & changed        │
-│                                                 │
-│ [View History] [Export Full Copy] [Open Folder] │
-│                                                 │
-│ Log                                             │
-│ ┌─────────────────────────────────────────┐     │
-│ │ [Backup] Starting incremental ...       │     │
-│ │ [Mode A] Fetching conversation list...  │     │
-│ │ [Done] Backup complete                  │     │
-│ └─────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────┘
-```
+*Chinese interface also available — click the language toggle at bottom-right.*
 
 **First use**:
 

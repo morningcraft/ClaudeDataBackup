@@ -17,8 +17,8 @@
   "gui.open_log": "Open Log",
   "gui.quit": "Quit",
   "gui.log_title": "Log",
-  "gui.lang_toggle_zh": "EN",
-  "gui.lang_toggle_en": "中",
+  "gui.lang_toggle_zh": "English",
+  "gui.lang_toggle_en": "中文",
 
   "gui.desktop_detected": "Claude Desktop: Detected",
   "gui.desktop_not_detected": "Claude Desktop: Not Detected",
