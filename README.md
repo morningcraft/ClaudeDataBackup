@@ -32,13 +32,13 @@ For daily use, Mode A with incremental backup is enough. Mode B and C are for re
 
 ### macOS
 
-1. Download `ClaudeDataBackup.dmg` from [Releases](https://github.com/Raven940309/ClaudeDataBackup/releases)
+1. Download `ClaudeDataBackup.dmg` from [Releases](https://github.com/morningcraft/ClaudeDataBackup/releases)
 2. Open the DMG, drag `ClaudeDataBackup` to the `Applications` folder
 3. On first open, macOS will say "cannot verify developer" — **this is standard Gatekeeper behavior for all unsigned apps**, not a security warning. Fix: System Settings → Privacy & Security → find ClaudeDataBackup at the bottom → click "Open Anyway". Only needed once.
 
 ### Windows
 
-1. Download `ClaudeDataBackup.exe` from [Releases](https://github.com/Raven940309/ClaudeDataBackup/releases)
+1. Download `ClaudeDataBackup.exe` from [Releases](https://github.com/morningcraft/ClaudeDataBackup/releases)
 2. Double-click to run
 3. If Windows Defender SmartScreen shows a warning, click "More info" → "Run anyway" (due to no code signing certificate)
 
@@ -97,7 +97,7 @@ claude-data-backup --output /tmp/x --mode bc
 
 ```bash
 # Python 3.12 required
-git clone https://github.com/Raven940309/ClaudeDataBackup.git
+git clone https://github.com/morningcraft/ClaudeDataBackup.git
 cd ClaudeDataBackup
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
@@ -161,4 +161,4 @@ MIT License. See [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-Inspired by Raven's account ban incident + the "ship then iterate" model from [macSystemCleaner](https://github.com/Raven940309/macSystemCleaner).
+Inspired by Raven's account ban incident + the "ship then iterate" model from [macSystemCleaner](https://github.com/morningcraft/macSystemCleaner).

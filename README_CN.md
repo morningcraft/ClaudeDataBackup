@@ -32,13 +32,13 @@ ClaudeDataBackup 在你的账号还活着的时候，把对话数据拉到本地
 
 ### macOS
 
-1. 从 [Releases](https://github.com/Raven940309/ClaudeDataBackup/releases) 下载 `ClaudeDataBackup.dmg`
+1. 从 [Releases](https://github.com/morningcraft/ClaudeDataBackup/releases) 下载 `ClaudeDataBackup.dmg`
 2. 打开 DMG，把 `ClaudeDataBackup` 拖到 `Applications` 文件夹
 3. 首次打开会提示"无法验证开发者"——**这是 macOS Gatekeeper 对所有未签名应用的标准行为**，不是安全警告。解决方法：系统设置 → 隐私与安全性 → 底部找到 ClaudeDataBackup → 点"仍要打开"。只需要操作一次，之后正常双击就行
 
 ### Windows
 
-1. 从 [Releases](https://github.com/Raven940309/ClaudeDataBackup/releases) 下载 `ClaudeDataBackup.exe`
+1. 从 [Releases](https://github.com/morningcraft/ClaudeDataBackup/releases) 下载 `ClaudeDataBackup.exe`
 2. 双击运行
 3. 如果 Windows Defender SmartScreen 弹出警告，点"更多信息" → "仍要运行"（因为没有代码签名证书）
 
@@ -97,7 +97,7 @@ claude-data-backup --output /tmp/x --mode bc
 
 ```bash
 # Python 3.12 required
-git clone https://github.com/Raven940309/ClaudeDataBackup.git
+git clone https://github.com/morningcraft/ClaudeDataBackup.git
 cd ClaudeDataBackup
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
@@ -160,4 +160,4 @@ MIT License. 见 [LICENSE](LICENSE)。
 
 ## 致谢
 
-灵感来自 Raven 的账号被封事件 + [macSystemCleaner](https://github.com/Raven940309/macSystemCleaner) 的 "ship then iterate" 模型。
+灵感来自 Raven 的账号被封事件 + [macSystemCleaner](https://github.com/morningcraft/macSystemCleaner) 的 "ship then iterate" 模型。

@@ -157,7 +157,7 @@
   "renderer.index_privacy_title": "隐私",
   "renderer.index_privacy_local": "所有数据均从本机读取，未上传任何远程服务器。",
   "renderer.index_privacy_cookie": "cookie 和 sessionKey 只在内存里存在，不落盘。",
-  "renderer.index_privacy_generated": "由 [ClaudeDataBackup](https://github.com/Raven940309/ClaudeDataBackup) 生成。",
+  "renderer.index_privacy_generated": "由 [ClaudeDataBackup](https://github.com/morningcraft/ClaudeDataBackup) 生成。",
   "renderer.stats_title": "STATS.md —— 本次运行统计",
   "renderer.stats_time": "时间",
   "renderer.desktop_index_title": "Claude Desktop 网页对话",
