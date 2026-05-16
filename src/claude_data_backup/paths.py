@@ -1,9 +1,11 @@
-"""跨平台路径探测 + 系统代理检测。
+"""跨平台路径探测 + 系统代理检测 + Claude Desktop 版本检测。
 
 所有路径函数都只做路径拼接 + 存在性检查，不读取文件内容。
 代理检测函数读取系统设置，返回 requests 兼容的 proxies dict。
+版本检测函数从已安装的 Claude Desktop 提取版本号，用于构造匹配的 User-Agent。
 """
 from __future__ import annotations
+import functools
 import os, sys, subprocess
 from pathlib import Path
 from typing import Literal
@@ -195,6 +197,262 @@ def report() -> dict:
     return r
 
 
+# ──────────────────────────────────────────────
+# Claude Desktop 版本检测（用于构造匹配的 User-Agent）
+# ──────────────────────────────────────────────
+
+def _claude_desktop_app_bundle() -> Path | None:
+    """macOS: Claude.app bundle 路径。"""
+    p = Path("/Applications/Claude.app")
+    return p if p.is_dir() else None
+
+
+def _detect_mac_claude_info() -> dict[str, str | None]:
+    """macOS: 从 .app bundle 提取 Claude / Electron / Chrome 版本号。"""
+    import plistlib, mmap, re
+
+    info: dict[str, str | None] = {
+        "claude_version": None,
+        "electron_version": None,
+        "chrome_version": None,
+    }
+    app = _claude_desktop_app_bundle()
+    if not app:
+        return info
+
+    # Claude Desktop 版本
+    info_plist = app / "Contents" / "Info.plist"
+    if info_plist.is_file():
+        try:
+            with open(info_plist, "rb") as f:
+                info["claude_version"] = plistlib.load(f).get(
+                    "CFBundleShortVersionString"
+                )
+        except Exception:
+            pass
+
+    # Electron 版本
+    electron_plist = (
+        app
+        / "Contents"
+        / "Frameworks"
+        / "Electron Framework.framework"
+        / "Versions"
+        / "A"
+        / "Resources"
+        / "Info.plist"
+    )
+    if electron_plist.is_file():
+        try:
+            with open(electron_plist, "rb") as f:
+                info["electron_version"] = plistlib.load(f).get("CFBundleVersion")
+        except Exception:
+            pass
+
+    # Chrome 版本（从 Electron Framework 二进制的字符串表提取）
+    framework_bin = (
+        app
+        / "Contents"
+        / "Frameworks"
+        / "Electron Framework.framework"
+        / "Versions"
+        / "A"
+        / "Electron Framework"
+    )
+    if framework_bin.is_file():
+        try:
+            with open(framework_bin, "rb") as f:
+                with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+                    m = re.search(rb"Chrome/(\d+\.\d+\.\d+\.\d+)", mm)
+                    if m:
+                        info["chrome_version"] = m.group(1).decode()
+        except Exception:
+            pass
+
+    return info
+
+
+def _detect_win_claude_info() -> dict[str, str | None]:
+    """Windows: 从已安装的 Claude Desktop 提取版本号。
+
+    优先读 exe 的 VERSIONINFO 资源（pywin32），否则尝试 PowerShell。
+    """
+    info: dict[str, str | None] = {
+        "claude_version": None,
+        "electron_version": None,
+        "chrome_version": None,
+    }
+
+    # 找 exe 路径
+    exe_candidates: list[Path] = []
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        # 标准安装
+        exe_candidates.append(
+            Path(local_appdata) / "Programs" / "Claude" / "Claude.exe"
+        )
+        # 用户级安装（部分版本）
+        exe_candidates.append(
+            Path(local_appdata) / "Claude" / "Claude.exe"
+        )
+    program_files = os.environ.get("ProgramFiles")
+    if program_files:
+        exe_candidates.append(Path(program_files) / "Claude" / "Claude.exe")
+
+    exe_path = None
+    for c in exe_candidates:
+        if c.is_file():
+            exe_path = c
+            break
+
+    if not exe_path:
+        return info
+
+    # 方法 1: pywin32 GetFileVersionInfo
+    try:
+        import win32api
+
+        lang, codepage = win32api.GetFileVersionInfo(
+            str(exe_path), "\\VarFileInfo\\Translation"
+        )[0]
+        version = win32api.GetFileVersionInfo(
+            str(exe_path),
+            f"\\StringFileInfo\\{lang:04x}{codepage:04x}\\FileVersion",
+        )
+        if version:
+            info["claude_version"] = version
+    except Exception:
+        pass
+
+    # 方法 2: 如果 pywin32 没拿到，用 PowerShell 兜底
+    if not info["claude_version"]:
+        try:
+            result = subprocess.run(
+                [
+                    "powershell",
+                    "-Command",
+                    f'(Get-Item "{exe_path}").VersionInfo.FileVersion',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                info["claude_version"] = result.stdout.strip()
+        except Exception:
+            pass
+
+    # Electron / Chrome 版本：从安装目录的 version 文件或 resources 中读取
+    if exe_path:
+        resource_dir = exe_path.parent / "resources"
+        if resource_dir.is_dir():
+            # 新版 Electron 可能在 resources/app/package.json 里有依赖信息
+            pkg_json = resource_dir / "app" / "package.json"
+            if not pkg_json.is_file():
+                pkg_json = resource_dir / "app.asar"  # asar 打包的没法直接读
+            # 尝试从 chrome.dll 等文件提取版本
+            for dll_name in ["chrome.dll", "chrome_elf.dll"]:
+                dll_path = exe_path.parent / dll_name
+                if dll_path.is_file():
+                    try:
+                        import struct
+
+                        with open(dll_path, "rb") as f:
+                            # PE header → VS_FIXEDFILEINFO
+                            f.seek(0x3C)
+                            pe_offset = struct.unpack("<I", f.read(4))[0]
+                            f.seek(pe_offset)
+                            if f.read(4) == b"PE\x00\x00":
+                                # 读 Optional Header 找 Resource Table
+                                # 这条路太复杂，放弃
+                                pass
+                    except Exception:
+                        pass
+
+    return info
+
+
+@functools.lru_cache(maxsize=1)
+def detect_claude_desktop_info() -> dict[str, str | None]:
+    """检测已安装的 Claude Desktop 版本信息。
+
+    Returns:
+        {"claude_version": "1.4758.0",
+         "electron_version": "41.3.0",
+         "chrome_version": "146.0.7680.188"}
+    未安装或检测失败时对应字段为 None。
+    """
+    p = detect_platform()
+    if p == "mac":
+        return _detect_mac_claude_info()
+    if p == "win":
+        return _detect_win_claude_info()
+    return {"claude_version": None, "electron_version": None, "chrome_version": None}
+
+
+# 已知的 Electron → Chromium 版本映射（兜底用）
+_ELECTRON_CHROME_MAP: dict[str, str] = {
+    "30.0.0": "124.0.6367.243",
+    "31.0.0": "126.0.6478.234",
+    "32.0.0": "128.0.6613.162",
+    "33.0.0": "130.0.6723.170",
+    "34.0.0": "132.0.6834.194",
+    "35.0.0": "134.0.6998.165",
+    "36.0.0": "136.0.7108.80",
+    "37.0.0": "138.0.7204.87",
+    "38.0.0": "140.0.7339.95",
+    "39.0.0": "142.0.7462.96",
+    "40.0.0": "144.0.7559.171",
+    "41.0.0": "146.0.7680.188",
+}
+
+
+def _chrome_from_electron(electron_version: str | None) -> str | None:
+    """从 Electron 版本推导 Chromium 版本（查表 + 前缀匹配）。"""
+    if not electron_version:
+        return None
+    # 精确匹配
+    if electron_version in _ELECTRON_CHROME_MAP:
+        return _ELECTRON_CHROME_MAP[electron_version]
+    # 前缀匹配（如 "41.3.0" 匹配 "41."）
+    prefix = electron_version.split(".")[0] + "."
+    for ev, cv in _ELECTRON_CHROME_MAP.items():
+        if ev.startswith(prefix):
+            return cv
+    return None
+
+
+def get_user_agent() -> str:
+    """构造与当前安装的 Claude Desktop 匹配的 User-Agent 字符串。
+
+    动态检测失败时回退到已知的旧版本（claudeai/0.14.2 + Electron/30 + Chrome/124）。
+    """
+    import platform as plat
+
+    info = detect_claude_desktop_info()
+    claude_ver = info.get("claude_version") or "0.14.2"
+    electron_ver = info.get("electron_version") or "30.0.0"
+    chrome_ver = info.get("chrome_version") or _chrome_from_electron(
+        info.get("electron_version")
+    ) or "124.0.0.0"
+
+    if sys.platform == "darwin":
+        # macOS 版本号用下划线格式，如 15.4.0 → 15_4_0
+        mac_ver = plat.mac_ver()[0] or "10.15.7"
+        os_part = f"Macintosh; Intel Mac OS X {mac_ver.replace('.', '_')}"
+    elif sys.platform == "win32":
+        os_part = "Windows NT 10.0; Win64; x64"
+    else:
+        os_part = "X11; Linux x86_64"
+
+    return (
+        f"Mozilla/5.0 ({os_part}) AppleWebKit/537.36 "
+        f"(KHTML, like Gecko) claudeai/{claude_ver} "
+        f"Chrome/{chrome_ver} Electron/{electron_ver} Safari/537.36"
+    )
+
+
 if __name__ == "__main__":
     import json
+
     print(json.dumps(report(), ensure_ascii=False, indent=2))

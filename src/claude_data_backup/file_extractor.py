@@ -359,12 +359,8 @@ def _download_api_files(api_files: list[dict], files_dir: Path,
                          index: dict, session_key: str,
                          logger: Callable[[str], None] | None = None) -> int:
     """通过 API 下载图片和 PDF。"""
-    USER_AGENT = (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) claudeai/0.14.2 Chrome/124.0.0.0 Electron/30.0.0 Safari/537.36"
-    )
     headers = {
-        "User-Agent": USER_AGENT,
+        "User-Agent": paths.get_user_agent(),
         "Cookie": f"sessionKey={session_key}",
         "Referer": "https://claude.ai/chats",
     }

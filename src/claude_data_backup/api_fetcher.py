@@ -14,10 +14,6 @@ from . import paths
 from .i18n import t as _
 
 API_BASE = "https://claude.ai/api"
-USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) claudeai/0.14.2 Chrome/124.0.0.0 Electron/30.0.0 Safari/537.36"
-)
 
 
 class ApiError(Exception):
@@ -36,7 +32,7 @@ class ApiFetcher:
         if proxy:
             self.sess.proxies.update(proxy)
         self.sess.headers.update({
-            "User-Agent": USER_AGENT,
+            "User-Agent": paths.get_user_agent(),
             "Accept": "application/json",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
             "Cookie": f"sessionKey={session_key}",
