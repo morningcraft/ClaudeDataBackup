@@ -256,3 +256,6 @@ customtkinter 需要显式声明 hidden imports，PyInstaller 的自动检测可
 - 2026-05-03：PyInstaller `--onefile` + `--windowed` 在 .app bundle 中导致 Dock 图标闪烁（bootloader 启动 → 解压 → Python 启动，中间 gap 图标消失）。改为 `--onedir` 解决。
 - 2026-05-03：`webbrowser.open()` 在 PyInstaller .app 包里不可靠（不报错但不打开浏览器）。改用 `subprocess.Popen(["open", path])` 解决。
 - 2026-05-03：macOS tkinter 的 `iconbitmap()` 不支持 `default=` 关键字参数，会报 `wrong # args`。去掉 `default=` 即可。
+- 2026-05-17：**WindowsApps 特殊 ACL**：Microsoft Store 安装的 Claude Desktop 根目录文件（`claude.exe`、`version`、`*.dll`）有特殊 ACL，Python `Path.is_file()` 直接访问会失败。但 `app\` 子目录下的文件（`app\claude.exe`、`app\version`）可正常读写。定位 Store 版 Claude 最可靠的方式是用 PowerShell `Get-AppxPackage`。
+- 2026-05-17：**Electron 版本读取**：Windows Store 版 Claude 的 Electron 版本写在 `app\version` 文件（Electron 惯例），纯文本如 `41.5.0`。比从 chrome.dll PE header 解析简单可靠。
+- 2026-05-17：**Claude Desktop 快速迭代**：2026 年 5 月内 3 次更新（1.4758→1.5354→1.7196），但 Chromium 数据结构（cookie v10 AES-GCM、Block File Cache）均保持向后兼容。

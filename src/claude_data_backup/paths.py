@@ -272,10 +272,47 @@ def _detect_mac_claude_info() -> dict[str, str | None]:
     return info
 
 
+def _find_win_claude_exe() -> Path | None:
+    """在 Windows 上定位 Claude Desktop exe（含 Microsoft Store 安装）。"""
+    candidates: list[Path] = []
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        candidates.append(Path(local_appdata) / "Programs" / "Claude" / "Claude.exe")
+        candidates.append(Path(local_appdata) / "Claude" / "Claude.exe")
+    program_files = os.environ.get("ProgramFiles")
+    if program_files:
+        candidates.append(Path(program_files) / "Claude" / "Claude.exe")
+
+    for c in candidates:
+        if c.is_file():
+            return c
+
+    # Microsoft Store 安装：通过 Get-AppxPackage 查找
+    try:
+        result = subprocess.run(
+            ["powershell", "-Command",
+             "(Get-AppxPackage -Name '*Claude*' | Select-Object -First 1).InstallLocation"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            install_dir = Path(result.stdout.strip())
+            # Store 版 exe 在 app\ 子目录下，该目录 ACL 允许直接访问
+            exe = install_dir / "app" / "claude.exe"
+            if exe.is_file():
+                return exe
+    except Exception:
+        pass
+
+    return None
+
+
 def _detect_win_claude_info() -> dict[str, str | None]:
     """Windows: 从已安装的 Claude Desktop 提取版本号。
 
-    优先读 exe 的 VERSIONINFO 资源（pywin32），否则尝试 PowerShell。
+    支持标准安装和 Microsoft Store (UWP) 安装。
+    Claude 版本从 exe VERSIONINFO 读取（pywin32 → PowerShell 兜底）。
+    Electron 版本读 exe 同目录下的 ``version`` 文件。
+    Chrome 版本从 Electron 映射表推导。
     """
     info: dict[str, str | None] = {
         "claude_version": None,
@@ -283,32 +320,11 @@ def _detect_win_claude_info() -> dict[str, str | None]:
         "chrome_version": None,
     }
 
-    # 找 exe 路径
-    exe_candidates: list[Path] = []
-    local_appdata = os.environ.get("LOCALAPPDATA")
-    if local_appdata:
-        # 标准安装
-        exe_candidates.append(
-            Path(local_appdata) / "Programs" / "Claude" / "Claude.exe"
-        )
-        # 用户级安装（部分版本）
-        exe_candidates.append(
-            Path(local_appdata) / "Claude" / "Claude.exe"
-        )
-    program_files = os.environ.get("ProgramFiles")
-    if program_files:
-        exe_candidates.append(Path(program_files) / "Claude" / "Claude.exe")
-
-    exe_path = None
-    for c in exe_candidates:
-        if c.is_file():
-            exe_path = c
-            break
-
+    exe_path = _find_win_claude_exe()
     if not exe_path:
         return info
 
-    # 方法 1: pywin32 GetFileVersionInfo
+    # Claude 版本：pywin32 优先（快），PowerShell 兜底（Store 版 pywin32 可能因 ACL 失败）
     try:
         import win32api
 
@@ -324,50 +340,30 @@ def _detect_win_claude_info() -> dict[str, str | None]:
     except Exception:
         pass
 
-    # 方法 2: 如果 pywin32 没拿到，用 PowerShell 兜底
     if not info["claude_version"]:
         try:
             result = subprocess.run(
-                [
-                    "powershell",
-                    "-Command",
-                    f'(Get-Item "{exe_path}").VersionInfo.FileVersion',
-                ],
-                capture_output=True,
-                text=True,
-                timeout=10,
+                ["powershell", "-Command",
+                 f'(Get-Item "{exe_path}").VersionInfo.FileVersion'],
+                capture_output=True, text=True, timeout=10,
             )
-            if result.returncode == 0:
+            if result.returncode == 0 and result.stdout.strip():
                 info["claude_version"] = result.stdout.strip()
         except Exception:
             pass
 
-    # Electron / Chrome 版本：从安装目录的 version 文件或 resources 中读取
-    if exe_path:
-        resource_dir = exe_path.parent / "resources"
-        if resource_dir.is_dir():
-            # 新版 Electron 可能在 resources/app/package.json 里有依赖信息
-            pkg_json = resource_dir / "app" / "package.json"
-            if not pkg_json.is_file():
-                pkg_json = resource_dir / "app.asar"  # asar 打包的没法直接读
-            # 尝试从 chrome.dll 等文件提取版本
-            for dll_name in ["chrome.dll", "chrome_elf.dll"]:
-                dll_path = exe_path.parent / dll_name
-                if dll_path.is_file():
-                    try:
-                        import struct
+    # Electron 版本：exe 同目录下的 version 文件（Electron 惯例）
+    version_file = exe_path.parent / "version"
+    if version_file.is_file():
+        try:
+            electron_ver = version_file.read_text().strip()
+            if electron_ver:
+                info["electron_version"] = electron_ver
+        except Exception:
+            pass
 
-                        with open(dll_path, "rb") as f:
-                            # PE header → VS_FIXEDFILEINFO
-                            f.seek(0x3C)
-                            pe_offset = struct.unpack("<I", f.read(4))[0]
-                            f.seek(pe_offset)
-                            if f.read(4) == b"PE\x00\x00":
-                                # 读 Optional Header 找 Resource Table
-                                # 这条路太复杂，放弃
-                                pass
-                    except Exception:
-                        pass
+    # Chrome 版本：从 Electron 映射表推导
+    info["chrome_version"] = _chrome_from_electron(info["electron_version"])
 
     return info
 
