@@ -112,6 +112,22 @@ def update_last_run(stats: dict) -> None:
     save_config(cfg)
 
 
+# ─── 调度配置 ─────────────────────────────────────────
+
+def get_schedule() -> dict:
+    """读取调度配置。"""
+    from .scheduler import ScheduleConfig, schedule_config_path
+    config = ScheduleConfig.load(schedule_config_path())
+    return config.to_dict()
+
+
+def save_schedule(data: dict) -> None:
+    """保存调度配置。"""
+    from .scheduler import ScheduleConfig, schedule_config_path
+    config = ScheduleConfig.from_dict(data)
+    config.save(schedule_config_path())
+
+
 if __name__ == "__main__":
     import json as _json
     cfg = load_config()

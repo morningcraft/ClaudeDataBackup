@@ -542,6 +542,81 @@ def run_incremental(backup_dir: Path, modes: str,
     return stats
 
 
+def _handle_schedule(action: str, args):
+    """处理 --schedule 子命令。"""
+    from .scheduler import (
+        ScheduleConfig,
+        run_scheduled_backup,
+        schedule_config_path,
+        get_next_run_time,
+    )
+
+    if action == "install":
+        config = ScheduleConfig.load(schedule_config_path())
+        if not config.enabled:
+            print(_("schedule.skipped_disabled"))
+            print(_("cli.schedule_hint_enable"))
+            return
+
+        if paths.detect_platform() == "mac":
+            from .scheduler_mac import install as mac_install
+            ok = mac_install(
+                config,
+                interval_seconds=config.time_trigger.interval_hours * 3600,
+            )
+        elif paths.detect_platform() == "win":
+            from .scheduler_win import install as win_install
+            ok = win_install(
+                config,
+                interval_hours=config.time_trigger.interval_hours,
+            )
+        else:
+            print(_("cli.schedule_unsupported_platform"))
+            return
+
+        if ok:
+            print(_("schedule.installed", path=str(schedule_config_path())))
+        else:
+            print(_("schedule.install_failed", error="see log"))
+
+    elif action == "uninstall":
+        if paths.detect_platform() == "mac":
+            from .scheduler_mac import uninstall as mac_uninstall
+            mac_uninstall()
+        elif paths.detect_platform() == "win":
+            from .scheduler_win import uninstall as win_uninstall
+            win_uninstall()
+        print(_("schedule.uninstalled"))
+
+    elif action == "status":
+        if paths.detect_platform() == "mac":
+            from .scheduler_mac import status as mac_status
+            st = mac_status()
+        elif paths.detect_platform() == "win":
+            from .scheduler_win import status as win_status
+            st = win_status()
+        else:
+            st = {"platform": paths.detect_platform()}
+
+        config = ScheduleConfig.load(schedule_config_path())
+        next_run = get_next_run_time(config)
+        from datetime import datetime
+        print(f"  平台: {st['platform']}")
+        print(f"  启用: {config.enabled}")
+        print(f"  调度器: {'已安装' if st.get('scheduler_installed') else '未安装'}")
+        print(f"  监听器: {'已安装' if st.get('watcher_installed') else '未安装'}")
+        print(f"  备份间隔: {config.time_trigger.interval_hours}h")
+        print(f"  最小间隔: {config.min_interval_hours}h")
+        if next_run:
+            print(_("schedule.next_run",
+                     time=datetime.fromtimestamp(next_run).strftime("%Y-%m-%d %H:%M")))
+
+    elif action == "run":
+        # 被 launchd / Task Scheduler 调用
+        config = ScheduleConfig.load(schedule_config_path())
+        run_scheduled_backup(config, "time")
+
+
 def main():
     init_language(cfg.get_backup_dir())
     setup_logging()
@@ -569,9 +644,16 @@ def main():
                     help=_("cli.mode_help"))
     ap.add_argument("--verbose", "-v", action="store_true", help=_("cli.verbose_help"))
     ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    ap.add_argument("--schedule", choices=["install", "uninstall", "status", "run"],
+                    default=None, help=_("cli.schedule_help"))
     args = ap.parse_args()
-    log.info("参数: output=%s, incremental=%s, mode=%s, set_backup_dir=%s",
-             args.output, args.incremental, args.mode, args.set_backup_dir)
+    log.info("参数: output=%s, incremental=%s, mode=%s, set_backup_dir=%s, schedule=%s",
+             args.output, args.incremental, args.mode, args.set_backup_dir, args.schedule)
+
+    # ── schedule 子命令 ──
+    if args.schedule:
+        _handle_schedule(args.schedule, args)
+        return
 
     # 设置备份目录
     if args.set_backup_dir:
