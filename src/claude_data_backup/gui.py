@@ -236,80 +236,61 @@ class App:
         auto_frame.grid(row=row, column=0, sticky="ew", pady=(0, 12))
         auto_frame.grid_columnconfigure(2, weight=1)
 
-        ctk.CTkLabel(auto_frame, text=_("gui.auto_backup"),
-                      font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold"),
-                      text_color=ACCENT).grid(
+        self.auto_enabled_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(auto_frame, text=_("gui.auto_enabled"),
+                         variable=self.auto_enabled_var,
+                         checkbox_width=20, checkbox_height=20,
+                         fg_color=ACCENT,
+                         font=ctk.CTkFont(family=UI_FONT, size=13),
+                         command=self._on_auto_enabled_toggle).grid(
             row=0, column=0, sticky="w", padx=14, pady=(12, 6))
 
-        self.auto_enabled_var = ctk.BooleanVar(value=False)
-        self.auto_checkbox = ctk.CTkCheckBox(
-            auto_frame, text=_("gui.auto_enabled"), width=20, height=20,
-            checkbox_width=20, checkbox_height=20,
-            font=ctk.CTkFont(family=UI_FONT, size=13),
-            variable=self.auto_enabled_var,
-            command=self._on_auto_enabled_toggle)
-        self.auto_checkbox.grid(row=0, column=1, columnspan=2,
-                                sticky="e", padx=(0, 14), pady=(12, 6))
-
         # 定时触发行
-        self.auto_time_var = ctk.BooleanVar(value=True)
-        self.auto_time_cb = ctk.CTkCheckBox(
-            auto_frame, text="", width=20, height=20,
-            checkbox_width=20, checkbox_height=20,
-            variable=self.auto_time_var,
-            command=self._on_auto_trigger_changed)
-        self.auto_time_cb.grid(row=1, column=0, sticky="w", padx=(14, 0), pady=(0, 4))
+        time_row = ctk.CTkFrame(auto_frame, fg_color="transparent")
+        time_row.grid(row=1, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 2))
 
-        self.auto_time_label = ctk.CTkLabel(
-            auto_frame, text=_("gui.auto_trigger_periodic"),
-            font=ctk.CTkFont(family=UI_FONT, size=12),
-            text_color=("gray50", "gray60"))
-        self.auto_time_label.grid(row=1, column=1, sticky="w", padx=(4, 8))
+        self.auto_time_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(time_row, text=_("gui.auto_trigger_periodic"),
+                         variable=self.auto_time_var,
+                         checkbox_width=20, checkbox_height=20,
+                         font=ctk.CTkFont(family=UI_FONT, size=13),
+                         command=self._on_auto_trigger_changed).pack(side="left")
 
         self.auto_interval_var = ctk.StringVar(value="24")
-        self.auto_interval_entry = ctk.CTkEntry(
-            auto_frame, width=44, height=24,
-            font=ctk.CTkFont(family=UI_FONT, size=12),
-            textvariable=self.auto_interval_var)
-        self.auto_interval_entry.grid(row=1, column=2, sticky="w")
+        interval_entry = ctk.CTkEntry(time_row, width=44, height=24,
+                      font=ctk.CTkFont(family=UI_FONT, size=12),
+                      textvariable=self.auto_interval_var)
+        interval_entry.pack(side="left", padx=(8, 4))
+        ctk.CTkLabel(time_row, text=_("gui.auto_interval_label"),
+                      font=ctk.CTkFont(family=UI_FONT, size=12),
+                      text_color=("gray50", "gray60")).pack(side="left")
+        self.auto_interval_entry = interval_entry
         self.auto_interval_entry.bind("<FocusOut>", self._on_auto_interval_changed)
         self.auto_interval_entry.bind("<Return>", self._on_auto_interval_changed)
 
-        self.auto_interval_unit = ctk.CTkLabel(
-            auto_frame, text=_("gui.auto_interval_label"),
-            font=ctk.CTkFont(family=UI_FONT, size=12),
-            text_color=("gray50", "gray60"))
-        self.auto_interval_unit.grid(row=1, column=2, sticky="w", padx=(48, 0))
-
         # Claude 关闭时触发行
+        close_row = ctk.CTkFrame(auto_frame, fg_color="transparent")
+        close_row.grid(row=2, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 2))
+
         self.auto_close_var = ctk.BooleanVar(value=False)
-        self.auto_close_cb = ctk.CTkCheckBox(
-            auto_frame, text="", width=20, height=20,
-            checkbox_width=20, checkbox_height=20,
-            variable=self.auto_close_var,
-            command=self._on_auto_trigger_changed)
-        self.auto_close_cb.grid(row=2, column=0, sticky="w", padx=(14, 0), pady=(0, 2))
+        ctk.CTkCheckBox(close_row, text=_("gui.auto_trigger_claude_close"),
+                         variable=self.auto_close_var,
+                         checkbox_width=20, checkbox_height=20,
+                         font=ctk.CTkFont(family=UI_FONT, size=13),
+                         command=self._on_auto_trigger_changed).pack(side="left")
 
-        ctk.CTkLabel(auto_frame, text=_("gui.auto_trigger_claude_close"),
+        # 最小间隔（同行右侧）
+        ctk.CTkLabel(close_row, text=_("gui.auto_debounce_label"),
                       font=ctk.CTkFont(family=UI_FONT, size=12),
-                      text_color=("gray50", "gray60")).grid(
-            row=2, column=1, columnspan=2, sticky="w", padx=(4, 0), pady=(0, 2))
-
-        # 最小间隔行
+                      text_color=("gray50", "gray60")).pack(side="right")
         self.auto_debounce_var = ctk.StringVar(value="5")
-        self.auto_debounce_entry = ctk.CTkEntry(
-            auto_frame, width=44, height=24,
-            font=ctk.CTkFont(family=UI_FONT, size=12),
-            textvariable=self.auto_debounce_var)
-        self.auto_debounce_entry.grid(row=2, column=2, sticky="w", padx=(0, 14))
+        debounce_entry = ctk.CTkEntry(close_row, width=44, height=24,
+                      font=ctk.CTkFont(family=UI_FONT, size=12),
+                      textvariable=self.auto_debounce_var)
+        debounce_entry.pack(side="right", padx=(0, 4))
+        self.auto_debounce_entry = debounce_entry
         self.auto_debounce_entry.bind("<FocusOut>", self._on_auto_debounce_changed)
         self.auto_debounce_entry.bind("<Return>", self._on_auto_debounce_changed)
-
-        self.auto_debounce_label = ctk.CTkLabel(
-            auto_frame, text=_("gui.auto_debounce_label"),
-            font=ctk.CTkFont(family=UI_FONT, size=12),
-            text_color=("gray50", "gray60"))
-        self.auto_debounce_label.grid(row=2, column=2, sticky="w", padx=(48, 0))
 
         # 状态行
         self.auto_status_label = ctk.CTkLabel(
@@ -780,6 +761,8 @@ class App:
     def _on_auto_enabled_toggle(self):
         config = self._save_schedule_config()
         self._apply_schedule_install(config)
+        # 立即刷新状态（不等 5s 轮询）
+        self.root.after(1500, self._update_auto_status)
 
     def _on_auto_trigger_changed(self, _choice=None):
         self._save_schedule_config()

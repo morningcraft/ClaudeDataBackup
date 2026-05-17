@@ -21,15 +21,61 @@ PLIST_PATH = PLIST_DIR / f"{PLIST_LABEL}.plist"
 LOG_DIR = Path.home() / ".claude-data-backup" / "logs"
 
 
+def _daemon_python() -> str:
+    """返回可运行 daemon 的有效 Python 路径。
+
+    优先用当前 python。如果是 PyInstaller .app（不支持模块导入），
+    则退到项目 .venv，最后尝试系统 python3。
+    """
+    import subprocess as _sp
+
+    def _works(p: str) -> bool:
+        try:
+            return _sp.run(
+                [p, "-c", "import claude_data_backup.autobackup_daemon"],
+                capture_output=True, timeout=10,
+            ).returncode == 0
+        except Exception:
+            return False
+
+    if _works(sys.executable):
+        return sys.executable
+
+    # PyInstaller .app 场景 —— 在 .app 同级或上级找 .venv
+    exe_path = Path(sys.executable)
+    for _ in range(6):
+        exe_path = exe_path.parent
+        candidate = exe_path / ".venv" / "bin" / "python3"
+        if candidate.is_file() and _works(str(candidate)):
+            return str(candidate)
+
+    for p in ["/usr/bin/python3", "/opt/homebrew/bin/python3"]:
+        if os.path.isfile(p) and _works(p):
+            return p
+
+    return sys.executable
+
+
+def _daemon_script() -> str:
+    """返回 run_daemon.py 的绝对路径。"""
+    # run_daemon.py 在项目根目录，和 src/ 同级
+    script = Path(__file__).resolve().parent.parent.parent / "run_daemon.py"
+    if script.is_file():
+        return str(script)
+    return str(Path.home() / "dev" / "claudeDataBackup" / "run_daemon.py")
+
+
 def _daemon_plist_xml() -> str:
     """生成 daemon 的 launchd plist。
 
     关键设计：
-    - ProgramArguments 是数组，直接调 Python —— 不经过 /bin/sh，避免 "sh" 后台活动通知
+    - ProgramArguments 是数组，直接调 Python + run_daemon.py 脚本，
+      不经过 /bin/sh，不依赖 -m（PyInstaller 不支持 -m）
     - KeepAlive + RunAtLoad：登录即启动，崩溃自动重启
-    - 内部定时器由 daemon 自己管理，launchd 只负责进程存活
+    - 内部定时器由 daemon 管理，launchd 只负责进程存活
     """
-    python = sys.executable
+    python = _daemon_python()
+    script = _daemon_script()
     stdout = str(LOG_DIR / "daemon.log")
     stderr = str(LOG_DIR / "daemon.err")
     return f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -42,8 +88,7 @@ def _daemon_plist_xml() -> str:
     <key>ProgramArguments</key>
     <array>
         <string>{python}</string>
-        <string>-m</string>
-        <string>claude_data_backup.autobackup_daemon</string>
+        <string>{script}</string>
     </array>
     <key>KeepAlive</key>
     <true/>

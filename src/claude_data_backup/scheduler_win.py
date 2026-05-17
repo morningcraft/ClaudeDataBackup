@@ -34,12 +34,16 @@ def install(config, interval_hours: int = 24) -> bool:
             capture_output=True,
         )
 
+        # daemon 入口脚本
+        script = Path(__file__).resolve().parent.parent.parent / "run_daemon.py"
+        daemon_cmd = f'"{python}" "{script}"'
+
         # 创建新任务：登录时启动 daemon
         subprocess.run(
             [
                 "schtasks", "/Create", "/F",
                 "/TN", TASK_NAME,
-                "/TR", f'"{python}" -m claude_data_backup.autobackup_daemon',
+                "/TR", daemon_cmd,
                 "/SC", "ONLOGON",
                 "/RL", "LIMITED",
                 "/DELAY", "0001:00",
