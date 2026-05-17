@@ -27,10 +27,19 @@ def _daemon_python() -> str:
 
     创建一个叫 ClaudeDataBackupDaemon 的 symlink 指向 python，
     macOS 后台活动通知会显示 "ClaudeDataBackupDaemon" 而非 "Python3"。
+
+    关键约束：不能用 PyInstaller bootloader——它不认识我们的 run_daemon.py，
+    会回退到默认入口 run_gui.py 导致无限打开 GUI 窗口。
     """
     import subprocess as _sp
 
+    def _is_bootloader(p: str) -> bool:
+        """PyInstaller bootloader 路径特征：在 .app/Contents/MacOS/ 下。"""
+        return ".app/Contents/MacOS/" in p
+
     def _works(p: str) -> bool:
+        if _is_bootloader(p):
+            return False  # bootloader 能跑 -c 但绝不能当 python 用
         try:
             return _sp.run(
                 [p, "-c", "import claude_data_backup.autobackup_daemon"],
@@ -39,23 +48,33 @@ def _daemon_python() -> str:
         except Exception:
             return False
 
-    # 找真实 python
-    real_python = sys.executable
-    if not _works(real_python):
+    # 找真实 python（绝对不能是 PyInstaller bootloader）
+    candidates = [sys.executable]
+
+    # 如果当前是 bootloader，找 .venv
+    if _is_bootloader(sys.executable):
         exe_path = Path(sys.executable)
         for _ in range(6):
             exe_path = exe_path.parent
             candidate = exe_path / ".venv" / "bin" / "python3"
-            if candidate.is_file() and _works(str(candidate)):
-                real_python = str(candidate)
+            if candidate.is_file():
+                candidates.insert(0, str(candidate))
                 break
-        else:
-            for p in ["/usr/bin/python3", "/opt/homebrew/bin/python3"]:
-                if os.path.isfile(p) and _works(p):
-                    real_python = str(p)
-                    break
 
-    # 创建命名 symlink，macOS 按 argv[0] 的文件名显示通知来源
+    # 系统 python
+    candidates.extend(["/opt/homebrew/bin/python3", "/usr/bin/python3"])
+
+    real_python = None
+    for c in candidates:
+        if os.path.isfile(c) and _works(c):
+            real_python = c
+            break
+
+    if not real_python:
+        # 最后的 fallback（不推荐，但总比没装好）
+        real_python = sys.executable
+
+    # 创建命名 symlink，macOS 按 argv[0] 文件名显示通知来源
     link_path = CONFIG_DIR / "ClaudeDataBackupDaemon"
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     try:
@@ -69,7 +88,6 @@ def _daemon_python() -> str:
                 link_path.unlink()
             os.symlink(real_python, str(link_path))
     except OSError:
-        # 创建 symlink 失败，直接用 real_python（通知会显示 "Python3"）
         return real_python
 
     return str(link_path)

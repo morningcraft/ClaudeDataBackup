@@ -739,10 +739,6 @@ class App:
         else:
             self.auto_checkbox.configure(state="normal")
 
-        # 配置启用了但 daemon 没跑 → 自动拉起
-        if config.enabled and not is_daemon_running() and has_backup:
-            self.root.after(1000, lambda c=config: self._apply_schedule_install(c))
-
     def _save_schedule_config(self):
         """从 UI 控件读取值，保存到 schedule.json。"""
         from .scheduler import (ScheduleConfig, TimeTrigger, ConditionTriggers,
