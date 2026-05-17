@@ -1,20 +1,52 @@
 # Changelog
 
-## v0.3.0-dev (WIP)
+## v0.3.0-dev (WIP · Mac 端开发完成，待 Win 验证)
+
+### 自动备份调度引擎
+- **`scheduler.py`** (new)：跨平台核心，ScheduleConfig / TimeTrigger / ConditionTriggers dataclass
+- `evaluate_schedule(trigger_reason)` 统一评估：time / claude_start / claude_close / system_wake / manual
+- Compound logic：`min_interval_minutes` 对所有触发类型生效（manual 除外）
+- 时间触发：periodic（每 N 分钟）/ daily / weekly / monthly
+- 条件触发：Claude Desktop 启动/关闭/系统唤醒
+- `schedule.json` 存储在备份目录下（与备份数据绑定，跨机器可移动）
+
+### macOS 执行层
+- **`scheduler_mac.py`** (new)：launchd plist 管理，数组 ProgramArguments（不经过 /bin/sh）
+- **`autobackup_daemon.py`** (new)：常驻守护进程，内部定时器 + Claude 进程轮询 + 状态文件
+- **`run_daemon.py`** (new)：入口脚本，launchd 直接调用（不依赖 `-m`）
+- macOS 菜单栏图标：PyObjC NSStatusBar "CB" + 菜单（立即备份/打开设置/退出）
+- 系统通知：osascript display notification
+
+### Windows 执行层
+- **`scheduler_win.py`** (new)：Task Scheduler (schtasks.exe) 管理
+- daemon 复用 `autobackup_daemon.py`（headless 模式，Win 端无 PyObjC）
+- 通知：log fallback（预留 winrt toast 接口）
 
 ### 动态 User-Agent 检测
-- **`paths.py`** 新增 `detect_claude_desktop_info()` + `get_user_agent()`：从已安装的 Claude Desktop 自动提取版本号（Claude / Electron / Chrome），构造匹配的 User-Agent
-  - Mac：读 Info.plist + mmap 扫 Electron Framework 二进制提取 Chrome 版本
-  - Win：pywin32 GetFileVersionInfo + PowerShell 兜底
-  - 已知 Electron 30–41 的 Chrome 映射表兜底
-- **`api_fetcher.py`** / **`file_extractor.py`**：硬编码 UA → `paths.get_user_agent()` 动态调用
+- **`paths.py`**：`detect_claude_desktop_info()` + `get_user_agent()`
+  - Mac：Info.plist + mmap 扫 Electron Framework → Chrome 版本
+  - Win：pywin32 GetFileVersionInfo + PowerShell + Get-AppxPackage 兜底
+  - Electron 30–41 → Chrome 映射表
+- **`api_fetcher.py`** / **`file_extractor.py`**：硬编码 UA → 动态调用
 
-### 兼容性验证（Claude Desktop 1.4758.0 + Claude Code 2.1.143）
-- Cookie 格式 v10 AES-GCM 不变，schema 20 列一致
-- Simple Cache v5 不变，magic / version 兼容
-- Claude Code JSONL schema 不变
-- Mode B 40 条、Mode C 54 real session 正常
-- Smoke test 8/8
+### GUI
+- 自动备份卡片：checkbox 触发器（定时 + 关闭 Claude）+ H+M 时间选择器
+- daemon 状态：⟳ 正在启动 / ● 运行中 / ○ 已停止 / ✗ 启动失败
+- 首次备份 gate：未备份过时禁用自动备份 checkbox
+- 窗口 580×860，日志区 14 行高度
+- 启动时自动拉起 daemon（安全延迟 + 分阶段检查）
+
+### 数据模型变更
+- `TimeTrigger.interval_hours` → `interval_minutes` (default 1440)
+- `ScheduleConfig.min_interval_hours` → `min_interval_minutes` (default 1)
+- `from_dict()` 向后兼容旧的 `interval_hours` 字段
+
+### CLI
+- `--schedule install / uninstall / status` 子命令
+
+### 兼容性验证
+- Claude Desktop 0.14.2 → 1.7196.0：Cookie v10、Cache v5、API 端点全部兼容
+- Claude Code 2.1.114 → 2.1.143：JSONL schema 不变
 
 ---
 
