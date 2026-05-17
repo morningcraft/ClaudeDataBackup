@@ -287,6 +287,7 @@
   "gui.auto_status_last": "Last auto-backup: {time}",
   "gui.auto_daemon_running": "Running",
   "gui.auto_daemon_stopped": "Stopped",
+  "gui.auto_hint": "Close the app anytime — auto backup runs in background. Reopen to check status.",
   "gui.auto_status_inactive": "Auto backup inactive",
   "gui.msgbox_schedule_installed": "Auto-backup has been installed",
   "gui.msgbox_schedule_uninstalled": "Auto-backup has been uninstalled",

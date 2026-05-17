@@ -560,10 +560,10 @@ def _handle_schedule(action: str, args):
 
         if paths.detect_platform() == "mac":
             from .scheduler_mac import install as plat_install
-            ok = plat_install(config, config.time_trigger.interval_hours * 3600)
+            ok = plat_install(config, config.time_trigger.interval_minutes)
         elif paths.detect_platform() == "win":
             from .scheduler_win import install as plat_install
-            ok = plat_install(config, config.time_trigger.interval_hours)
+            ok = plat_install(config, config.time_trigger.interval_minutes)
         else:
             print(_("cli.schedule_unsupported_platform"))
             return
@@ -598,7 +598,7 @@ def _handle_schedule(action: str, args):
         print(f"  启用: {config.enabled}")
         print(f"  daemon 已安装: {st.get('daemon_installed', False)}")
         print(f"  daemon 运行中: {st.get('daemon_running', False)}")
-        print(f"  定时触发: {config.time_trigger.type} / {config.time_trigger.interval_hours}h")
+        print(f"  定时触发: {config.time_trigger.type} / {config.time_trigger.interval_minutes}min")
         print(f"  Claude 关闭触发: {config.condition_triggers.on_claude_close}")
         print(f"  Claude 启动触发: {config.condition_triggers.on_claude_start}")
         print(f"  最小间隔: {config.min_interval_minutes}m")

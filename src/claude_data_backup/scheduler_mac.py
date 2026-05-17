@@ -120,7 +120,7 @@ def _daemon_plist_xml() -> str:
 </plist>"""
 
 
-def install(config, interval_seconds: int = 3600) -> bool:
+def install(config, interval_minutes: int = 1440) -> bool:
     """安装 launchd plist 并启动 daemon。"""
     if detect_platform() != "mac":
         log.warning("install 仅支持 macOS")

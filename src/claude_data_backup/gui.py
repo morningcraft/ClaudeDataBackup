@@ -53,8 +53,8 @@ class App:
         log.info("App.__init__ 开始")
         self.root = root
         self.root.title(f"ClaudeDataBackup v{__version__}")
-        self.root.geometry("580x720")
-        self.root.minsize(520, 550)
+        self.root.geometry("580x760")
+        self.root.minsize(520, 600)
 
         # 设置窗口图标
         self._set_icon()
@@ -256,20 +256,30 @@ class App:
                          font=ctk.CTkFont(family=UI_FONT, size=13),
                          command=self._on_auto_trigger_changed).pack(side="left")
 
-        # 间隔输入 + 标签右对齐
+        # 间隔输入 H+M 右对齐
         interval_box = ctk.CTkFrame(time_row, fg_color="transparent")
         interval_box.pack(side="right")
-        self.auto_interval_var = ctk.StringVar(value="24")
-        interval_entry = ctk.CTkEntry(interval_box, width=44, height=24,
+        self.auto_interval_h_var = ctk.StringVar(value="24")
+        self.auto_interval_m_var = ctk.StringVar(value="0")
+        h_entry = ctk.CTkEntry(interval_box, width=38, height=24,
                       font=ctk.CTkFont(family=UI_FONT, size=12),
-                      textvariable=self.auto_interval_var)
-        interval_entry.pack(side="left", padx=(0, 4))
-        ctk.CTkLabel(interval_box, text=_("gui.auto_interval_label"),
+                      textvariable=self.auto_interval_h_var)
+        h_entry.pack(side="left")
+        ctk.CTkLabel(interval_box, text="h",
                       font=ctk.CTkFont(family=UI_FONT, size=12),
-                      text_color=("gray50", "gray60")).pack(side="left")
-        self.auto_interval_entry = interval_entry
-        self.auto_interval_entry.bind("<FocusOut>", self._on_auto_interval_changed)
-        self.auto_interval_entry.bind("<Return>", self._on_auto_interval_changed)
+                      text_color=("gray50", "gray60")).pack(side="left", padx=(2, 6))
+        m_entry = ctk.CTkEntry(interval_box, width=38, height=24,
+                      font=ctk.CTkFont(family=UI_FONT, size=12),
+                      textvariable=self.auto_interval_m_var)
+        m_entry.pack(side="left")
+        ctk.CTkLabel(interval_box, text="m",
+                      font=ctk.CTkFont(family=UI_FONT, size=12),
+                      text_color=("gray50", "gray60")).pack(side="left", padx=(2, 0))
+        self.auto_interval_entry = h_entry  # for busy-state disabling
+        h_entry.bind("<FocusOut>", self._on_auto_interval_changed)
+        h_entry.bind("<Return>", self._on_auto_interval_changed)
+        m_entry.bind("<FocusOut>", self._on_auto_interval_changed)
+        m_entry.bind("<Return>", self._on_auto_interval_changed)
 
         # Claude 关闭时触发行
         close_row = ctk.CTkFrame(auto_frame, fg_color="transparent")
@@ -301,7 +311,15 @@ class App:
             font=ctk.CTkFont(family=UI_FONT, size=11),
             text_color=("gray50", "gray60"))
         self.auto_status_label.grid(row=3, column=0, columnspan=3,
-                                     sticky="w", padx=14, pady=(4, 10))
+                                     sticky="w", padx=14, pady=(4, 2))
+
+        # 使用说明
+        self.auto_hint_label = ctk.CTkLabel(
+            auto_frame, text=_("gui.auto_hint"),
+            font=ctk.CTkFont(family=UI_FONT, size=10),
+            text_color=("gray60", "gray65"))
+        self.auto_hint_label.grid(row=4, column=0, columnspan=3,
+                                   sticky="w", padx=14, pady=(0, 10))
 
         row += 1
 
@@ -690,7 +708,9 @@ class App:
         self.auto_time_var.set(
             config.time_trigger.type in ("periodic", "daily", "weekly", "monthly"))
         self.auto_close_var.set(config.condition_triggers.on_claude_close)
-        self.auto_interval_var.set(str(config.time_trigger.interval_hours))
+        total_mins = config.time_trigger.interval_minutes
+        self.auto_interval_h_var.set(str(total_mins // 60))
+        self.auto_interval_m_var.set(str(total_mins % 60))
         self.auto_debounce_var.set(str(config.min_interval_minutes))
         self._update_auto_status(config)
 
@@ -703,9 +723,14 @@ class App:
         on_close = self.auto_close_var.get()
 
         try:
-            interval_hours = int(self.auto_interval_var.get())
+            h = int(self.auto_interval_h_var.get())
         except ValueError:
-            interval_hours = 24
+            h = 24
+        try:
+            m = int(self.auto_interval_m_var.get())
+        except ValueError:
+            m = 0
+        total_minutes = max(h * 60 + m, 1)
 
         try:
             min_interval = int(self.auto_debounce_var.get())
@@ -718,7 +743,7 @@ class App:
             backup_dir=str(cfg.get_backup_dir()),
             time_trigger=TimeTrigger(
                 type="periodic" if has_time else "daily",
-                interval_hours=interval_hours,
+                interval_minutes=total_minutes,
             ),
             condition_triggers=ConditionTriggers(
                 on_claude_close=on_close,
@@ -781,10 +806,10 @@ class App:
         if config.enabled:
             if paths.detect_platform() == "mac":
                 from .scheduler_mac import install as plat_install
-                plat_install(config, config.time_trigger.interval_hours * 3600)
+                plat_install(config, config.time_trigger.interval_minutes)
             elif paths.detect_platform() == "win":
                 from .scheduler_win import install as plat_install
-                plat_install(config, config.time_trigger.interval_hours)
+                plat_install(config, config.time_trigger.interval_minutes)
         else:
             if paths.detect_platform() == "mac":
                 from .scheduler_mac import uninstall as plat_uninstall

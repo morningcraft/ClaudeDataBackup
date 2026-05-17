@@ -17,7 +17,7 @@ log = get_logger(__name__)
 TASK_NAME = "ClaudeDataBackup AutoBackup Daemon"
 
 
-def install(config, interval_hours: int = 24) -> bool:
+def install(config, interval_minutes: int = 1440) -> bool:
     """创建 Task Scheduler 任务启动 daemon。"""
     if detect_platform() != "win":
         log.warning("install 仅支持 Windows")

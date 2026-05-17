@@ -43,6 +43,9 @@ pyinstaller \
     --hidden-import=claude_data_backup.scheduler_win \
     --hidden-import=claude_data_backup.notifier \
     --hidden-import=claude_data_backup.autobackup_daemon \
+    --hidden-import=AppKit \
+    --hidden-import=Foundation \
+    --hidden-import=objc \
     --hidden-import=zstandard \
     --hidden-import=brotli \
     --hidden-import=Crypto.Cipher.AES \

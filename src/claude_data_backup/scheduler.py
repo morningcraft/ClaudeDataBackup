@@ -18,7 +18,7 @@ from typing import Callable, Optional
 class TimeTrigger:
     """定时触发配置。"""
     type: str = "periodic"       # "periodic" | "daily" | "weekly" | "monthly"
-    interval_hours: int = 24     # periodic 用
+    interval_minutes: int = 1440     # periodic 用
     days: Optional[list[int]] = None   # weekly: [1..7]=Mon..Sun; monthly: [1..31]
     time: Optional[str] = None   # "HH:MM" for daily/weekly/monthly
 
@@ -50,7 +50,7 @@ class ScheduleConfig:
             "type": self.time_trigger.type,
         }
         if self.time_trigger.type == "periodic":
-            tt["interval_hours"] = self.time_trigger.interval_hours
+            tt["interval_minutes"] = self.time_trigger.interval_minutes
         else:
             tt["days"] = self.time_trigger.days
             tt["time"] = self.time_trigger.time
@@ -75,7 +75,9 @@ class ScheduleConfig:
         tt_raw = d.get("time_trigger", {})
         time_trigger = TimeTrigger(
             type=tt_raw.get("type", "periodic"),
-            interval_hours=tt_raw.get("interval_hours", 24),
+            # backward compat: old configs use interval_hours
+            interval_minutes=tt_raw.get("interval_minutes",
+                              tt_raw.get("interval_hours", 24) * 60),
             days=tt_raw.get("days"),
             time=tt_raw.get("time"),
         )
@@ -218,7 +220,7 @@ def get_next_run_time(config: ScheduleConfig) -> Optional[float]:
     now = datetime.now()
 
     if tt.type == "periodic":
-        return time.time() + tt.interval_hours * 3600
+        return time.time() + tt.interval_minutes * 60
 
     if tt.time:
         try:

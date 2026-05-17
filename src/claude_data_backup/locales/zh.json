@@ -287,6 +287,7 @@
   "gui.auto_status_last": "上次自动备份: {time}",
   "gui.auto_daemon_running": "运行中",
   "gui.auto_daemon_stopped": "已停止",
+  "gui.auto_hint": "开启后可关闭应用，后台持续运行。重新打开可查看状态。",
   "gui.auto_status_inactive": "自动备份未启用",
   "gui.msgbox_schedule_installed": "自动备份已安装成功",
   "gui.msgbox_schedule_uninstalled": "自动备份已卸载",
