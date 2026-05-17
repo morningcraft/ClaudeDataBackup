@@ -17,6 +17,7 @@
   "gui.open_log": "Open Log",
   "gui.quit": "Quit",
   "gui.log_title": "Log",
+  "gui.log_ready": "Ready, waiting for action...",
   "gui.lang_toggle_zh": "English",
   "gui.lang_toggle_en": "中文",
 

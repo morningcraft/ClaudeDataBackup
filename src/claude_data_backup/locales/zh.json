@@ -17,6 +17,7 @@
   "gui.open_log": "打开日志",
   "gui.quit": "退出",
   "gui.log_title": "日志",
+  "gui.log_ready": "就绪，等待操作...",
   "gui.lang_toggle_zh": "English",
   "gui.lang_toggle_en": "中文",
 

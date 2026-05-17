@@ -69,6 +69,8 @@ class App:
         # 技术日志只写文件，GUI textbox 只显示 logger() 回调的用户可读内容
         # （GuiHandler 已移除，避免技术细节污染用户界面）
 
+        # 日志区初始占位提示
+        self._log(_("gui.log_ready"))
         self._diagnose()
         self._load_schedule_config()
         self.root.after(5000, self._poll_auto_status)
