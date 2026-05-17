@@ -265,14 +265,15 @@ class App:
                       font=ctk.CTkFont(family=UI_FONT, size=12),
                       textvariable=self.auto_interval_h_var)
         h_entry.pack(side="left")
-        ctk.CTkLabel(interval_box, text="h",
+        self.auto_hour_label = ctk.CTkLabel(interval_box, text=_("gui.auto_hour_unit"),
                       font=ctk.CTkFont(family=UI_FONT, size=12),
-                      text_color=("gray50", "gray60")).pack(side="left", padx=(2, 6))
+                      text_color=("gray50", "gray60"))
+        self.auto_hour_label.pack(side="left", padx=(2, 6))
         m_entry = ctk.CTkEntry(interval_box, width=38, height=24,
                       font=ctk.CTkFont(family=UI_FONT, size=12),
                       textvariable=self.auto_interval_m_var)
         m_entry.pack(side="left")
-        ctk.CTkLabel(interval_box, text="m",
+        self.auto_min_label = ctk.CTkLabel(interval_box, text=_("gui.auto_minute_unit"),
                       font=ctk.CTkFont(family=UI_FONT, size=12),
                       text_color=("gray50", "gray60")).pack(side="left", padx=(2, 0))
         self.auto_interval_entry = h_entry  # for busy-state disabling
@@ -713,6 +714,10 @@ class App:
         self.auto_interval_m_var.set(str(total_mins % 60))
         self.auto_debounce_var.set(str(config.min_interval_minutes))
         self._update_auto_status(config)
+
+        # 配置启用了但 daemon 没跑 → 自动拉起
+        if config.enabled and not is_daemon_running():
+            self.root.after(1000, lambda c=config: self._apply_schedule_install(c))
 
     def _save_schedule_config(self):
         """从 UI 控件读取值，保存到 schedule.json。"""
