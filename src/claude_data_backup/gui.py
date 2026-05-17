@@ -237,13 +237,14 @@ class App:
         auto_frame.grid_columnconfigure(2, weight=1)
 
         self.auto_enabled_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(auto_frame, text=_("gui.auto_enabled"),
-                         variable=self.auto_enabled_var,
-                         checkbox_width=20, checkbox_height=20,
-                         fg_color=ACCENT,
-                         font=ctk.CTkFont(family=UI_FONT, size=13),
-                         command=self._on_auto_enabled_toggle).grid(
-            row=0, column=0, sticky="w", padx=14, pady=(12, 6))
+        self.auto_checkbox = ctk.CTkCheckBox(
+            auto_frame, text=_("gui.auto_enabled"),
+            variable=self.auto_enabled_var,
+            checkbox_width=20, checkbox_height=20,
+            fg_color=ACCENT,
+            font=ctk.CTkFont(family=UI_FONT, size=13),
+            command=self._on_auto_enabled_toggle)
+        self.auto_checkbox.grid(row=0, column=0, sticky="w", padx=14, pady=(12, 6))
 
         # 定时触发行
         time_row = ctk.CTkFrame(auto_frame, fg_color="transparent")
@@ -630,6 +631,9 @@ class App:
         self._set_buttons_busy(False)
         self._update_backup_status()
         self._load_schedule_config()
+        # 备份过一次后解锁自动备份
+        if self._has_existing_backup() and hasattr(self, "auto_checkbox"):
+            self.auto_checkbox.configure(state="normal")
         save_language_preference(cfg.get_backup_dir())
 
     def _on_export_done(self, output: Path) -> None:
@@ -700,6 +704,19 @@ class App:
 
     # ─── 自动备份回调 ──────────────────────────────────
 
+    def _has_existing_backup(self) -> bool:
+        """检查是否已有备份数据。"""
+        backup_dir = cfg.get_backup_dir()
+        mf = backup_dir / "manifest.json"
+        if not mf.is_file():
+            return False
+        try:
+            import json
+            data = json.loads(mf.read_text(encoding="utf-8"))
+            return bool(data.get("conversations") or data.get("cli_sessions"))
+        except Exception:
+            return False
+
     def _load_schedule_config(self):
         """从 schedule.json 加载配置并更新 UI。"""
         from .scheduler import ScheduleConfig, schedule_config_path
@@ -715,8 +732,15 @@ class App:
         self.auto_debounce_var.set(str(config.min_interval_minutes))
         self._update_auto_status(config)
 
+        # 首次使用：没有备份过 → 禁用自动备份
+        has_backup = self._has_existing_backup()
+        if not has_backup:
+            self.auto_checkbox.configure(state="disabled")
+        else:
+            self.auto_checkbox.configure(state="normal")
+
         # 配置启用了但 daemon 没跑 → 自动拉起
-        if config.enabled and not is_daemon_running():
+        if config.enabled and not is_daemon_running() and has_backup:
             self.root.after(1000, lambda c=config: self._apply_schedule_install(c))
 
     def _save_schedule_config(self):
@@ -764,6 +788,12 @@ class App:
         from .autobackup_daemon import is_daemon_running, read_status
         if config is None:
             config = ScheduleConfig.load(schedule_config_path())
+
+        # 未备份过 → 特殊提示
+        if not self._has_existing_backup():
+            self.auto_status_label.configure(text="  ".join([
+                "○", _("gui.auto_need_backup_first")]))
+            return
 
         parts = []
         if is_daemon_running():

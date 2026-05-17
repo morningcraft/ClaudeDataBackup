@@ -295,6 +295,9 @@ def run_scheduled_backup(
 
 # ─── 调度配置路径 ────────────────────────────────────
 
-def schedule_config_path() -> Path:
-    from .config import CONFIG_DIR
-    return CONFIG_DIR / "schedule.json"
+def schedule_config_path(backup_dir: Path | None = None) -> Path:
+    """返回 schedule.json 路径（存在备份目录下，与备份数据绑定）。"""
+    if backup_dir is None:
+        from .config import get_backup_dir
+        backup_dir = get_backup_dir()
+    return backup_dir / "schedule.json"
