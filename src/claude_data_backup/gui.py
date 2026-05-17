@@ -53,8 +53,8 @@ class App:
         log.info("App.__init__ 开始")
         self.root = root
         self.root.title(f"ClaudeDataBackup v{__version__}")
-        self.root.geometry("580x800")
-        self.root.minsize(520, 650)
+        self.root.geometry("580x860")
+        self.root.minsize(520, 680)
 
         # 设置窗口图标
         self._set_icon()
@@ -73,6 +73,14 @@ class App:
         self._log(_("gui.log_ready"))
         self._diagnose()
         self._load_schedule_config()
+        # 如果 config 显示已启用但 daemon 没跑 → 延迟安全拉起
+        if (self._schedule_config and self._schedule_config.enabled
+                and self._has_existing_backup()):
+            from .autobackup_daemon import is_daemon_running
+            if not is_daemon_running():
+                self._daemon_state = "starting"
+                self._update_auto_status()
+                self.root.after(2500, self._auto_start_daemon)
         self.root.after(5000, self._poll_auto_status)
         self.root.after(100, self._drain_log_queue)
         log.info("App.__init__ 完成，mainloop 即将进入")
@@ -395,7 +403,7 @@ class App:
                       text_color=ACCENT).grid(
             row=0, column=0, sticky="w", padx=14, pady=(12, 4))
 
-        self.log_text = ctk.CTkTextbox(log_frame, wrap="word", height=8,
+        self.log_text = ctk.CTkTextbox(log_frame, wrap="word", height=14,
                                         font=ctk.CTkFont(family="Consolas", size=12))
         self.log_text.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 12))
         self.log_frame = log_frame  # 保存引用供高度计算
@@ -855,6 +863,18 @@ class App:
             self._daemon_state = "stopped"
             self._apply_schedule_install(config)
             self.root.after(1000, self._update_auto_status)
+
+    def _auto_start_daemon(self):
+        """UI 已就绪，安全启动 daemon。"""
+        if not self._schedule_config:
+            return
+        ok = self._apply_schedule_install(self._schedule_config)
+        if ok:
+            for delay in (1500, 3000, 5000, 9000):
+                self.root.after(delay, self._check_daemon_started)
+        else:
+            self._daemon_state = "failed"
+            self._update_auto_status()
 
     def _check_daemon_started(self):
         """检查 daemon 是否已启动，更新状态。"""
