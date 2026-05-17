@@ -53,8 +53,8 @@ class App:
         log.info("App.__init__ 开始")
         self.root = root
         self.root.title(f"ClaudeDataBackup v{__version__}")
-        self.root.geometry("580x760")
-        self.root.minsize(520, 600)
+        self.root.geometry("580x800")
+        self.root.minsize(520, 650)
 
         # 设置窗口图标
         self._set_icon()
@@ -395,7 +395,7 @@ class App:
                       text_color=ACCENT).grid(
             row=0, column=0, sticky="w", padx=14, pady=(12, 4))
 
-        self.log_text = ctk.CTkTextbox(log_frame, wrap="word", height=6,
+        self.log_text = ctk.CTkTextbox(log_frame, wrap="word", height=8,
                                         font=ctk.CTkFont(family="Consolas", size=12))
         self.log_text.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 12))
         self.log_frame = log_frame  # 保存引用供高度计算
@@ -726,6 +726,7 @@ class App:
         from .scheduler import ScheduleConfig, schedule_config_path
         from .autobackup_daemon import is_daemon_running, read_status
         config = ScheduleConfig.load(schedule_config_path())
+        self._schedule_config = config  # 缓存，避免 poll 时重新 load 覆写状态
         self.auto_enabled_var.set(config.enabled)
         # 同步 daemon 状态
         if is_daemon_running():
@@ -785,6 +786,7 @@ class App:
             min_interval_minutes=min_interval,
         )
         config.save(schedule_config_path())
+        self._schedule_config = config  # 缓存
         self._update_auto_status(config)
         return config
 
@@ -792,7 +794,9 @@ class App:
         from .scheduler import ScheduleConfig, schedule_config_path, get_next_run_time
         from .autobackup_daemon import is_daemon_running, read_status
         if config is None:
-            config = ScheduleConfig.load(schedule_config_path())
+            config = getattr(self, "_schedule_config", None)
+            if config is None:
+                config = ScheduleConfig.load(schedule_config_path())
 
         # 未备份过 → 特殊提示
         if not self._has_existing_backup():
