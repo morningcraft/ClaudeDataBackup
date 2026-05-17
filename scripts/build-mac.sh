@@ -38,6 +38,11 @@ pyinstaller \
     --hidden-import=claude_data_backup.renderer \
     --hidden-import=claude_data_backup.html_viewer \
     --hidden-import=claude_data_backup.file_extractor \
+    --hidden-import=claude_data_backup.scheduler \
+    --hidden-import=claude_data_backup.scheduler_mac \
+    --hidden-import=claude_data_backup.scheduler_win \
+    --hidden-import=claude_data_backup.notifier \
+    --hidden-import=claude_data_backup.autobackup_daemon \
     --hidden-import=zstandard \
     --hidden-import=brotli \
     --hidden-import=Crypto.Cipher.AES \

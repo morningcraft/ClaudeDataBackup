@@ -546,10 +546,10 @@ def _handle_schedule(action: str, args):
     """处理 --schedule 子命令。"""
     from .scheduler import (
         ScheduleConfig,
-        run_scheduled_backup,
         schedule_config_path,
         get_next_run_time,
     )
+    from .autobackup_daemon import is_daemon_running, read_status
 
     if action == "install":
         config = ScheduleConfig.load(schedule_config_path())
@@ -559,17 +559,11 @@ def _handle_schedule(action: str, args):
             return
 
         if paths.detect_platform() == "mac":
-            from .scheduler_mac import install as mac_install
-            ok = mac_install(
-                config,
-                interval_seconds=config.time_trigger.interval_hours * 3600,
-            )
+            from .scheduler_mac import install as plat_install
+            ok = plat_install(config, config.time_trigger.interval_hours * 3600)
         elif paths.detect_platform() == "win":
-            from .scheduler_win import install as win_install
-            ok = win_install(
-                config,
-                interval_hours=config.time_trigger.interval_hours,
-            )
+            from .scheduler_win import install as plat_install
+            ok = plat_install(config, config.time_trigger.interval_hours)
         else:
             print(_("cli.schedule_unsupported_platform"))
             return
@@ -581,40 +575,47 @@ def _handle_schedule(action: str, args):
 
     elif action == "uninstall":
         if paths.detect_platform() == "mac":
-            from .scheduler_mac import uninstall as mac_uninstall
-            mac_uninstall()
+            from .scheduler_mac import uninstall as plat_uninstall
+            plat_uninstall()
         elif paths.detect_platform() == "win":
-            from .scheduler_win import uninstall as win_uninstall
-            win_uninstall()
+            from .scheduler_win import uninstall as plat_uninstall
+            plat_uninstall()
         print(_("schedule.uninstalled"))
 
     elif action == "status":
+        st: dict = {"platform": paths.detect_platform()}
         if paths.detect_platform() == "mac":
-            from .scheduler_mac import status as mac_status
-            st = mac_status()
+            from .scheduler_mac import status as plat_status
+            st = plat_status()
         elif paths.detect_platform() == "win":
-            from .scheduler_win import status as win_status
-            st = win_status()
-        else:
-            st = {"platform": paths.detect_platform()}
+            from .scheduler_win import status as plat_status
+            st = plat_status()
 
         config = ScheduleConfig.load(schedule_config_path())
         next_run = get_next_run_time(config)
         from datetime import datetime
-        print(f"  平台: {st['platform']}")
+        print(f"  平台: {st.get('platform', '?')}")
         print(f"  启用: {config.enabled}")
-        print(f"  调度器: {'已安装' if st.get('scheduler_installed') else '未安装'}")
-        print(f"  监听器: {'已安装' if st.get('watcher_installed') else '未安装'}")
-        print(f"  备份间隔: {config.time_trigger.interval_hours}h")
+        print(f"  daemon 已安装: {st.get('daemon_installed', False)}")
+        print(f"  daemon 运行中: {st.get('daemon_running', False)}")
+        print(f"  定时触发: {config.time_trigger.type} / {config.time_trigger.interval_hours}h")
+        print(f"  Claude 关闭触发: {config.condition_triggers.on_claude_close}")
+        print(f"  Claude 启动触发: {config.condition_triggers.on_claude_start}")
         print(f"  最小间隔: {config.min_interval_hours}h")
         if next_run:
             print(_("schedule.next_run",
                      time=datetime.fromtimestamp(next_run).strftime("%Y-%m-%d %H:%M")))
+        st_file = read_status()
+        if st_file:
+            print(f"\n  [daemon 状态]")
+            print(f"  上次检查: {st_file.get('last_check', 'N/A')}")
+            print(f"  上次备份: {st_file.get('last_backup', 'N/A')}")
+            print(f"  Claude 运行中: {st_file.get('claude_running', 'N/A')}")
 
     elif action == "run":
-        # 被 launchd / Task Scheduler 调用
-        config = ScheduleConfig.load(schedule_config_path())
-        run_scheduled_backup(config, "time")
+        # 兼容旧版：直接跑 daemon
+        from .autobackup_daemon import run_daemon
+        run_daemon()
 
 
 def main():

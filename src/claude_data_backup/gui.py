@@ -70,6 +70,7 @@ class App:
 
         self._diagnose()
         self._load_schedule_config()
+        self.root.after(5000, self._poll_auto_status)
         self.root.after(100, self._drain_log_queue)
         log.info("App.__init__ 完成，mainloop 即将进入")
 
@@ -233,7 +234,7 @@ class App:
         # ---- 自动备份 ----
         auto_frame = ctk.CTkFrame(self.main_frame, fg_color=CARD_BG, corner_radius=10)
         auto_frame.grid(row=row, column=0, sticky="ew", pady=(0, 12))
-        auto_frame.grid_columnconfigure(1, weight=1)
+        auto_frame.grid_columnconfigure(2, weight=1)
 
         ctk.CTkLabel(auto_frame, text=_("gui.auto_backup"),
                       font=ctk.CTkFont(family=UI_FONT, size=13, weight="bold"),
@@ -247,66 +248,77 @@ class App:
             font=ctk.CTkFont(family=UI_FONT, size=13),
             variable=self.auto_enabled_var,
             command=self._on_auto_enabled_toggle)
-        self.auto_checkbox.grid(row=0, column=1, sticky="e", padx=(0, 14), pady=(12, 6))
+        self.auto_checkbox.grid(row=0, column=1, columnspan=2,
+                                sticky="e", padx=(0, 14), pady=(12, 6))
 
-        # 触发方式
-        ctk.CTkLabel(auto_frame, text=_("gui.auto_trigger_label"),
-                      font=ctk.CTkFont(family=UI_FONT, size=12),
-                      text_color=("gray50", "gray60")).grid(
-            row=1, column=0, sticky="w", padx=14, pady=(0, 4))
-
-        trigger_options = [
-            _("gui.auto_trigger_periodic"),
-            _("gui.auto_trigger_claude_close"),
-            _("gui.auto_trigger_both"),
-        ]
-        self.auto_trigger_var = ctk.StringVar(value=trigger_options[0])
-        self.auto_trigger_menu = ctk.CTkOptionMenu(
-            auto_frame, values=trigger_options,
-            variable=self.auto_trigger_var,
-            font=ctk.CTkFont(family=UI_FONT, size=12),
-            width=140, height=28,
+        # 定时触发行
+        self.auto_time_var = ctk.BooleanVar(value=True)
+        self.auto_time_cb = ctk.CTkCheckBox(
+            auto_frame, text="", width=20, height=20,
+            checkbox_width=20, checkbox_height=20,
+            variable=self.auto_time_var,
             command=self._on_auto_trigger_changed)
-        self.auto_trigger_menu.grid(row=1, column=1, sticky="w", padx=(0, 14), pady=(0, 4))
+        self.auto_time_cb.grid(row=1, column=0, sticky="w", padx=(14, 0), pady=(0, 4))
 
-        # 间隔设置行
-        interval_row = ctk.CTkFrame(auto_frame, fg_color="transparent")
-        interval_row.grid(row=2, column=0, columnspan=2, sticky="ew", padx=14, pady=(4, 4))
+        self.auto_time_label = ctk.CTkLabel(
+            auto_frame, text=_("gui.auto_trigger_periodic"),
+            font=ctk.CTkFont(family=UI_FONT, size=12),
+            text_color=("gray50", "gray60"))
+        self.auto_time_label.grid(row=1, column=1, sticky="w", padx=(4, 8))
 
-        ctk.CTkLabel(interval_row, text=_("gui.auto_interval_label"),
-                      font=ctk.CTkFont(family=UI_FONT, size=12),
-                      text_color=("gray50", "gray60")).pack(side="left")
         self.auto_interval_var = ctk.StringVar(value="24")
         self.auto_interval_entry = ctk.CTkEntry(
-            interval_row, width=50, height=26,
+            auto_frame, width=44, height=24,
             font=ctk.CTkFont(family=UI_FONT, size=12),
             textvariable=self.auto_interval_var)
-        self.auto_interval_entry.pack(side="left", padx=(6, 0))
+        self.auto_interval_entry.grid(row=1, column=2, sticky="w")
         self.auto_interval_entry.bind("<FocusOut>", self._on_auto_interval_changed)
         self.auto_interval_entry.bind("<Return>", self._on_auto_interval_changed)
 
-        ctk.CTkLabel(interval_row, text=_("gui.auto_debounce_label"),
+        self.auto_interval_unit = ctk.CTkLabel(
+            auto_frame, text=_("gui.auto_interval_label"),
+            font=ctk.CTkFont(family=UI_FONT, size=12),
+            text_color=("gray50", "gray60"))
+        self.auto_interval_unit.grid(row=1, column=2, sticky="w", padx=(48, 0))
+
+        # Claude 关闭时触发行
+        self.auto_close_var = ctk.BooleanVar(value=False)
+        self.auto_close_cb = ctk.CTkCheckBox(
+            auto_frame, text="", width=20, height=20,
+            checkbox_width=20, checkbox_height=20,
+            variable=self.auto_close_var,
+            command=self._on_auto_trigger_changed)
+        self.auto_close_cb.grid(row=2, column=0, sticky="w", padx=(14, 0), pady=(0, 2))
+
+        ctk.CTkLabel(auto_frame, text=_("gui.auto_trigger_claude_close"),
                       font=ctk.CTkFont(family=UI_FONT, size=12),
-                      text_color=("gray50", "gray60")).pack(side="left", padx=(16, 0))
+                      text_color=("gray50", "gray60")).grid(
+            row=2, column=1, columnspan=2, sticky="w", padx=(4, 0), pady=(0, 2))
+
+        # 最小间隔行
         self.auto_debounce_var = ctk.StringVar(value="5")
         self.auto_debounce_entry = ctk.CTkEntry(
-            interval_row, width=50, height=26,
+            auto_frame, width=44, height=24,
             font=ctk.CTkFont(family=UI_FONT, size=12),
             textvariable=self.auto_debounce_var)
-        self.auto_debounce_entry.pack(side="left", padx=(6, 0))
+        self.auto_debounce_entry.grid(row=2, column=2, sticky="w", padx=(0, 14))
         self.auto_debounce_entry.bind("<FocusOut>", self._on_auto_debounce_changed)
         self.auto_debounce_entry.bind("<Return>", self._on_auto_debounce_changed)
+
+        self.auto_debounce_label = ctk.CTkLabel(
+            auto_frame, text=_("gui.auto_debounce_label"),
+            font=ctk.CTkFont(family=UI_FONT, size=12),
+            text_color=("gray50", "gray60"))
+        self.auto_debounce_label.grid(row=2, column=2, sticky="w", padx=(48, 0))
 
         # 状态行
         self.auto_status_label = ctk.CTkLabel(
             auto_frame, text=_("gui.auto_status_inactive"),
             font=ctk.CTkFont(family=UI_FONT, size=11),
             text_color=("gray50", "gray60"))
-        self.auto_status_label.grid(row=3, column=0, columnspan=2,
-                                     sticky="w", padx=14, pady=(0, 10))
+        self.auto_status_label.grid(row=3, column=0, columnspan=3,
+                                     sticky="w", padx=14, pady=(4, 10))
 
-        # 保存 schedule trigger_options 引用供语言切换重建用
-        self._auto_trigger_options = trigger_options
         row += 1
 
         # ---- 主操作按钮 ----
@@ -628,14 +640,10 @@ class App:
         self.open_btn.configure(state="disabled" if busy else "normal")
         self.view_btn.configure(state="disabled" if busy else "normal")
         # 自动备份控件
-        if hasattr(self, "auto_checkbox"):
-            self.auto_checkbox.configure(state=state)
-        if hasattr(self, "auto_trigger_menu"):
-            self.auto_trigger_menu.configure(state=state)
-        if hasattr(self, "auto_interval_entry"):
-            self.auto_interval_entry.configure(state=state)
-        if hasattr(self, "auto_debounce_entry"):
-            self.auto_debounce_entry.configure(state=state)
+        for attr in ("auto_checkbox", "auto_time_cb", "auto_close_cb",
+                     "auto_interval_entry", "auto_debounce_entry"):
+            if hasattr(self, attr) and getattr(self, attr).winfo_exists():
+                getattr(self, attr).configure(state=state)
 
     def _open_viewer(self) -> None:
         log.info("_open_viewer 被调用, _last_output_dir=%s", self._last_output_dir)
@@ -691,45 +699,24 @@ class App:
 
     def _load_schedule_config(self):
         """从 schedule.json 加载配置并更新 UI。"""
-        from .scheduler import ScheduleConfig, schedule_config_path, get_next_run_time
+        from .scheduler import ScheduleConfig, schedule_config_path
+        from .autobackup_daemon import is_daemon_running, read_status
         config = ScheduleConfig.load(schedule_config_path())
         self.auto_enabled_var.set(config.enabled)
+        self.auto_time_var.set(
+            config.time_trigger.type in ("periodic", "daily", "weekly", "monthly"))
+        self.auto_close_var.set(config.condition_triggers.on_claude_close)
         self.auto_interval_var.set(str(config.time_trigger.interval_hours))
         self.auto_debounce_var.set(str(config.min_interval_hours))
-
-        # 触发类型映射
-        if config.condition_triggers.on_claude_close:
-            if config.time_trigger.type == "periodic":
-                self.auto_trigger_var.set(_("gui.auto_trigger_both"))
-            else:
-                self.auto_trigger_var.set(_("gui.auto_trigger_claude_close"))
-        else:
-            self.auto_trigger_var.set(_("gui.auto_trigger_periodic"))
-
         self._update_auto_status(config)
-
-        # 语言切换后重建 OptionMenu 的 values
-        trigger_options = [
-            _("gui.auto_trigger_periodic"),
-            _("gui.auto_trigger_claude_close"),
-            _("gui.auto_trigger_both"),
-        ]
-        self.auto_trigger_menu.configure(values=trigger_options)
 
     def _save_schedule_config(self):
         """从 UI 控件读取值，保存到 schedule.json。"""
         from .scheduler import (ScheduleConfig, TimeTrigger, ConditionTriggers,
                                 schedule_config_path)
         enabled = self.auto_enabled_var.get()
-        trigger_label = self.auto_trigger_var.get()
-
-        # 解析 trigger type
-        periodic_label = _("gui.auto_trigger_periodic")
-        close_label = _("gui.auto_trigger_claude_close")
-        both_label = _("gui.auto_trigger_both")
-
-        on_close = trigger_label in (close_label, both_label)
-        has_time = trigger_label in (periodic_label, both_label)
+        has_time = self.auto_time_var.get()
+        on_close = self.auto_close_var.get()
 
         try:
             interval_hours = int(self.auto_interval_var.get())
@@ -760,19 +747,35 @@ class App:
 
     def _update_auto_status(self, config=None):
         from .scheduler import ScheduleConfig, schedule_config_path, get_next_run_time
+        from .autobackup_daemon import is_daemon_running, read_status
         if config is None:
             config = ScheduleConfig.load(schedule_config_path())
-        if not config.enabled:
-            self.auto_status_label.configure(text=_("gui.auto_status_inactive"))
+
+        parts = []
+        if is_daemon_running():
+            parts.append("● " + _("gui.auto_daemon_running"))
         else:
+            parts.append("○ " + _("gui.auto_daemon_stopped"))
+
+        if config.enabled:
+            st = read_status()
+            if st and st.get("last_backup"):
+                parts.append(" | " + _("gui.auto_status_last",
+                                       time=st["last_backup"]))
             next_run = get_next_run_time(config)
             if next_run:
                 from datetime import datetime
-                self.auto_status_label.configure(
-                    text=_("gui.auto_status_next",
-                           time=datetime.fromtimestamp(next_run).strftime("%Y-%m-%d %H:%M")))
-            else:
-                self.auto_status_label.configure(text=_("gui.auto_status_inactive"))
+                parts.append(" | " + _("gui.auto_status_next",
+                                       time=datetime.fromtimestamp(next_run).strftime("%H:%M")))
+        else:
+            parts.append(" | " + _("gui.auto_status_inactive"))
+
+        self.auto_status_label.configure(text="  ".join(parts))
+
+    def _poll_auto_status(self):
+        """定时刷新 daemon 状态。"""
+        self._update_auto_status()
+        self.root.after(5000, self._poll_auto_status)
 
     def _on_auto_enabled_toggle(self):
         config = self._save_schedule_config()
@@ -788,24 +791,21 @@ class App:
         self._save_schedule_config()
 
     def _apply_schedule_install(self, config):
-        """根据配置安装或卸载 OS 调度器。"""
+        """根据配置安装或卸载 daemon。"""
         if config.enabled:
             if paths.detect_platform() == "mac":
-                from .scheduler_mac import install as mac_install
-                ok = mac_install(config, config.time_trigger.interval_hours * 3600)
+                from .scheduler_mac import install as plat_install
+                plat_install(config, config.time_trigger.interval_hours * 3600)
             elif paths.detect_platform() == "win":
-                from .scheduler_win import install as win_install
-                ok = win_install(config, config.time_trigger.interval_hours)
-            else:
-                ok = False
+                from .scheduler_win import install as plat_install
+                plat_install(config, config.time_trigger.interval_hours)
         else:
             if paths.detect_platform() == "mac":
-                from .scheduler_mac import uninstall as mac_uninstall
-                mac_uninstall()
+                from .scheduler_mac import uninstall as plat_uninstall
+                plat_uninstall()
             elif paths.detect_platform() == "win":
-                from .scheduler_win import uninstall as win_uninstall
-                win_uninstall()
-            ok = True
+                from .scheduler_win import uninstall as plat_uninstall
+                plat_uninstall()
 
     def _open_log(self) -> None:
         """打开日志文件所在目录，选中日志文件。"""

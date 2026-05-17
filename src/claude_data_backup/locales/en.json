@@ -285,6 +285,8 @@
   "gui.auto_debounce_label": "Min interval (hours)",
   "gui.auto_status_next": "Next backup: {time}",
   "gui.auto_status_last": "Last auto-backup: {time}",
+  "gui.auto_daemon_running": "Running",
+  "gui.auto_daemon_stopped": "Stopped",
   "gui.auto_status_inactive": "Auto backup inactive",
   "gui.msgbox_schedule_installed": "Auto-backup has been installed",
   "gui.msgbox_schedule_uninstalled": "Auto-backup has been uninstalled",
