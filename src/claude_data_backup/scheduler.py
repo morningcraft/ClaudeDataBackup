@@ -39,7 +39,7 @@ class ScheduleConfig:
     backup_dir: str = "~/Documents/ClaudeDataBackup"
     time_trigger: TimeTrigger = field(default_factory=TimeTrigger)
     condition_triggers: ConditionTriggers = field(default_factory=ConditionTriggers)
-    min_interval_hours: int = 5
+    min_interval_minutes: int = 1
     notify_success: bool = True
     notify_failure: bool = True
 
@@ -65,7 +65,7 @@ class ScheduleConfig:
                 "on_claude_close": self.condition_triggers.on_claude_close,
                 "on_system_wake": self.condition_triggers.on_system_wake,
             },
-            "min_interval_hours": self.min_interval_hours,
+            "min_interval_minutes": self.min_interval_minutes,
             "notify_success": self.notify_success,
             "notify_failure": self.notify_failure,
         }
@@ -93,7 +93,7 @@ class ScheduleConfig:
             backup_dir=d.get("backup_dir", "~/Documents/ClaudeDataBackup"),
             time_trigger=time_trigger,
             condition_triggers=condition_triggers,
-            min_interval_hours=d.get("min_interval_hours", 5),
+            min_interval_minutes=d.get("min_interval_minutes", 1),
             notify_success=d.get("notify_success", True),
             notify_failure=d.get("notify_failure", True),
         )
@@ -181,11 +181,11 @@ def evaluate_schedule(
         return False, "schedule.skipped_disabled"
 
     # 最小间隔检查（所有触发类型都受此约束，manual 除外）
-    if trigger_reason != "manual" and config.min_interval_hours > 0:
+    if trigger_reason != "manual" and config.min_interval_minutes > 0:
         last_time = get_last_backup_time(backup_dir)
         if last_time:
-            elapsed = (time.time() - last_time) / 3600.0
-            if elapsed < config.min_interval_hours:
+            elapsed = (time.time() - last_time) / 60.0
+            if elapsed < config.min_interval_minutes:
                 return False, "schedule.skipped_interval"
 
     # 按触发类型检查
@@ -273,7 +273,7 @@ def run_scheduled_backup(
         if skip_key == "schedule.skipped_interval":
             last_time = get_last_backup_time(backup_dir)
             elapsed = (time.time() - last_time) / 3600.0 if last_time else 0
-            emit(_(skip_key, elapsed=elapsed, min_hours=config.min_interval_hours))
+            emit(_(skip_key, elapsed=elapsed, min_minutes=config.min_interval_minutes))
         elif skip_key == "schedule.skipped_condition":
             emit(_(skip_key, reason=trigger_reason))
         else:

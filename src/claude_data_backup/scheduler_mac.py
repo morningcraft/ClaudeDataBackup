@@ -19,13 +19,14 @@ PLIST_LABEL = "com.claudedatabackup.daemon"
 PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
 PLIST_PATH = PLIST_DIR / f"{PLIST_LABEL}.plist"
 LOG_DIR = Path.home() / ".claude-data-backup" / "logs"
+CONFIG_DIR = Path.home() / ".claude-data-backup"
 
 
 def _daemon_python() -> str:
-    """返回可运行 daemon 的有效 Python 路径。
+    """返回可运行 daemon 的 symlink 路径。
 
-    优先用当前 python。如果是 PyInstaller .app（不支持模块导入），
-    则退到项目 .venv，最后尝试系统 python3。
+    创建一个叫 ClaudeDataBackupDaemon 的 symlink 指向 python，
+    macOS 后台活动通知会显示 "ClaudeDataBackupDaemon" 而非 "Python3"。
     """
     import subprocess as _sp
 
@@ -38,27 +39,44 @@ def _daemon_python() -> str:
         except Exception:
             return False
 
-    if _works(sys.executable):
-        return sys.executable
+    # 找真实 python
+    real_python = sys.executable
+    if not _works(real_python):
+        exe_path = Path(sys.executable)
+        for _ in range(6):
+            exe_path = exe_path.parent
+            candidate = exe_path / ".venv" / "bin" / "python3"
+            if candidate.is_file() and _works(str(candidate)):
+                real_python = str(candidate)
+                break
+        else:
+            for p in ["/usr/bin/python3", "/opt/homebrew/bin/python3"]:
+                if os.path.isfile(p) and _works(p):
+                    real_python = str(p)
+                    break
 
-    # PyInstaller .app 场景 —— 在 .app 同级或上级找 .venv
-    exe_path = Path(sys.executable)
-    for _ in range(6):
-        exe_path = exe_path.parent
-        candidate = exe_path / ".venv" / "bin" / "python3"
-        if candidate.is_file() and _works(str(candidate)):
-            return str(candidate)
+    # 创建命名 symlink，macOS 按 argv[0] 的文件名显示通知来源
+    link_path = CONFIG_DIR / "ClaudeDataBackupDaemon"
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        if link_path.is_symlink():
+            current_target = os.readlink(str(link_path))
+            if current_target != real_python:
+                link_path.unlink()
+                os.symlink(real_python, str(link_path))
+        else:
+            if link_path.exists():
+                link_path.unlink()
+            os.symlink(real_python, str(link_path))
+    except OSError:
+        # 创建 symlink 失败，直接用 real_python（通知会显示 "Python3"）
+        return real_python
 
-    for p in ["/usr/bin/python3", "/opt/homebrew/bin/python3"]:
-        if os.path.isfile(p) and _works(p):
-            return p
-
-    return sys.executable
+    return str(link_path)
 
 
 def _daemon_script() -> str:
     """返回 run_daemon.py 的绝对路径。"""
-    # run_daemon.py 在项目根目录，和 src/ 同级
     script = Path(__file__).resolve().parent.parent.parent / "run_daemon.py"
     if script.is_file():
         return str(script)
@@ -68,11 +86,9 @@ def _daemon_script() -> str:
 def _daemon_plist_xml() -> str:
     """生成 daemon 的 launchd plist。
 
-    关键设计：
-    - ProgramArguments 是数组，直接调 Python + run_daemon.py 脚本，
-      不经过 /bin/sh，不依赖 -m（PyInstaller 不支持 -m）
-    - KeepAlive + RunAtLoad：登录即启动，崩溃自动重启
-    - 内部定时器由 daemon 管理，launchd 只负责进程存活
+    ProgramArguments[0] 用 ClaudeDataBackupDaemon symlink，
+    macOS 通知显示 "ClaudeDataBackupDaemon" 而非 "Python3"。
+    不经过 /bin/sh，直接数组传参。
     """
     python = _daemon_python()
     script = _daemon_script()
@@ -118,21 +134,18 @@ def install(config, interval_seconds: int = 3600) -> bool:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         uid = os.getuid()
 
-        # 先停旧 daemon
         subprocess.run(
             ["launchctl", "bootout", f"gui/{uid}/{PLIST_LABEL}"],
             capture_output=True,
         )
         stop_daemon()
 
-        # 写 plist 并加载
         PLIST_PATH.write_text(_daemon_plist_xml(), encoding="utf-8")
         result = subprocess.run(
             ["launchctl", "bootstrap", f"gui/{uid}", str(PLIST_PATH)],
             capture_output=True, text=True,
         )
         if result.returncode != 0:
-            # 可能已加载，enable + kickstart
             subprocess.run(
                 ["launchctl", "enable", f"gui/{uid}/{PLIST_LABEL}"],
                 capture_output=True,
@@ -142,7 +155,7 @@ def install(config, interval_seconds: int = 3600) -> bool:
                 capture_output=True,
             )
 
-        log.info("launchd daemon 已安装: %s → %s", PLIST_PATH, python)
+        log.info("launchd daemon 已安装: %s", PLIST_PATH)
         return True
     except Exception as e:
         log.error("launchd 安装失败: %s", e)
@@ -168,6 +181,10 @@ def uninstall() -> bool:
     if PLIST_PATH.is_file():
         PLIST_PATH.unlink()
         log.info("已删除: %s", PLIST_PATH)
+
+    # 清理 daemon symlink
+    symlink = CONFIG_DIR / "ClaudeDataBackupDaemon"
+    symlink.unlink(missing_ok=True)
 
     return True
 

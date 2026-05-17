@@ -601,7 +601,7 @@ def _handle_schedule(action: str, args):
         print(f"  定时触发: {config.time_trigger.type} / {config.time_trigger.interval_hours}h")
         print(f"  Claude 关闭触发: {config.condition_triggers.on_claude_close}")
         print(f"  Claude 启动触发: {config.condition_triggers.on_claude_start}")
-        print(f"  最小间隔: {config.min_interval_hours}h")
+        print(f"  最小间隔: {config.min_interval_minutes}m")
         if next_run:
             print(_("schedule.next_run",
                      time=datetime.fromtimestamp(next_run).strftime("%Y-%m-%d %H:%M")))

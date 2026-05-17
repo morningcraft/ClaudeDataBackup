@@ -256,12 +256,15 @@ class App:
                          font=ctk.CTkFont(family=UI_FONT, size=13),
                          command=self._on_auto_trigger_changed).pack(side="left")
 
+        # 间隔输入 + 标签右对齐
+        interval_box = ctk.CTkFrame(time_row, fg_color="transparent")
+        interval_box.pack(side="right")
         self.auto_interval_var = ctk.StringVar(value="24")
-        interval_entry = ctk.CTkEntry(time_row, width=44, height=24,
+        interval_entry = ctk.CTkEntry(interval_box, width=44, height=24,
                       font=ctk.CTkFont(family=UI_FONT, size=12),
                       textvariable=self.auto_interval_var)
-        interval_entry.pack(side="left", padx=(8, 4))
-        ctk.CTkLabel(time_row, text=_("gui.auto_interval_label"),
+        interval_entry.pack(side="left", padx=(0, 4))
+        ctk.CTkLabel(interval_box, text=_("gui.auto_interval_label"),
                       font=ctk.CTkFont(family=UI_FONT, size=12),
                       text_color=("gray50", "gray60")).pack(side="left")
         self.auto_interval_entry = interval_entry
@@ -283,7 +286,7 @@ class App:
         ctk.CTkLabel(close_row, text=_("gui.auto_debounce_label"),
                       font=ctk.CTkFont(family=UI_FONT, size=12),
                       text_color=("gray50", "gray60")).pack(side="right")
-        self.auto_debounce_var = ctk.StringVar(value="5")
+        self.auto_debounce_var = ctk.StringVar(value="1")
         debounce_entry = ctk.CTkEntry(close_row, width=44, height=24,
                       font=ctk.CTkFont(family=UI_FONT, size=12),
                       textvariable=self.auto_debounce_var)
@@ -707,7 +710,7 @@ class App:
         try:
             min_interval = int(self.auto_debounce_var.get())
         except ValueError:
-            min_interval = 5
+            min_interval = 1
 
         config = ScheduleConfig(
             enabled=enabled,
@@ -720,7 +723,7 @@ class App:
             condition_triggers=ConditionTriggers(
                 on_claude_close=on_close,
             ),
-            min_interval_hours=min_interval,
+            min_interval_minutes=min_interval,
         )
         config.save(schedule_config_path())
         self._update_auto_status(config)

@@ -186,7 +186,7 @@ def run_daemon():
                 claude_running=was_claude_running,
                 schedule_enabled=config.enabled,
                 interval_hours=config.time_trigger.interval_hours,
-                min_interval_hours=config.min_interval_hours,
+                min_interval_minutes=config.min_interval_minutes,
             )
 
             if not config.enabled:
