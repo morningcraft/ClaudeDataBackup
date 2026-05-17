@@ -62,6 +62,7 @@ class App:
         self._build_ui()
         self._log_queue: queue.Queue[str] = queue.Queue()
         self._worker: threading.Thread | None = None
+        self._daemon_state: str = "stopped"  # starting | running | stopped | failed
         # 初始化为配置中的备份目录，这样重启后不需要先备份就能查看聊天记录
         self._last_output_dir: Path | None = cfg.get_backup_dir()
 
@@ -392,9 +393,10 @@ class App:
                       text_color=ACCENT).grid(
             row=0, column=0, sticky="w", padx=14, pady=(12, 4))
 
-        self.log_text = ctk.CTkTextbox(log_frame, wrap="word",
+        self.log_text = ctk.CTkTextbox(log_frame, wrap="word", height=6,
                                         font=ctk.CTkFont(family="Consolas", size=12))
         self.log_text.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 12))
+        self.log_frame = log_frame  # 保存引用供高度计算
 
     # ---------- 语言切换 ----------
 
@@ -723,6 +725,11 @@ class App:
         from .autobackup_daemon import is_daemon_running, read_status
         config = ScheduleConfig.load(schedule_config_path())
         self.auto_enabled_var.set(config.enabled)
+        # 同步 daemon 状态
+        if is_daemon_running():
+            self._daemon_state = "running"
+        else:
+            self._daemon_state = "stopped"
         self.auto_time_var.set(
             config.time_trigger.type in ("periodic", "daily", "weekly", "monthly"))
         self.auto_close_var.set(config.condition_triggers.on_claude_close)
@@ -788,12 +795,19 @@ class App:
         # 未备份过 → 特殊提示
         if not self._has_existing_backup():
             self.auto_status_label.configure(text="  ".join([
-                "○", _("gui.auto_need_backup_first")]))
+                "○ " + _("gui.auto_need_backup_first")]))
             return
 
         parts = []
-        if is_daemon_running():
+        state = getattr(self, "_daemon_state", "stopped")
+
+        if state == "starting":
+            parts.append("⟳ " + _("gui.auto_daemon_starting"))
+        elif state == "running" or is_daemon_running():
+            self._daemon_state = "running"
             parts.append("● " + _("gui.auto_daemon_running"))
+        elif state == "failed":
+            parts.append("✗ " + _("gui.auto_daemon_failed"))
         else:
             parts.append("○ " + _("gui.auto_daemon_stopped"))
 
@@ -819,9 +833,33 @@ class App:
 
     def _on_auto_enabled_toggle(self):
         config = self._save_schedule_config()
-        self._apply_schedule_install(config)
-        # 立即刷新状态（不等 5s 轮询）
-        self.root.after(1500, self._update_auto_status)
+        if config.enabled:
+            # 立即显示"正在启动" → 启动 daemon → 逐步检查
+            self._daemon_state = "starting"
+            self._update_auto_status(config)
+            ok = self._apply_schedule_install(config)
+            if ok:
+                # 分阶段检查：1s, 2s, 4s, 8s
+                for delay in (1500, 3000, 5000, 9000):
+                    self.root.after(delay, self._check_daemon_started)
+            else:
+                self._daemon_state = "failed"
+                self._update_auto_status(config)
+        else:
+            self._daemon_state = "stopped"
+            self._apply_schedule_install(config)
+            self.root.after(1000, self._update_auto_status)
+
+    def _check_daemon_started(self):
+        """检查 daemon 是否已启动，更新状态。"""
+        from .autobackup_daemon import is_daemon_running
+        if is_daemon_running():
+            self._daemon_state = "running"
+        elif self._daemon_state == "running":
+            return  # 已经是 running 就不改
+        else:
+            self._daemon_state = "starting"  # 还在等
+        self._update_auto_status()
 
     def _on_auto_trigger_changed(self, _choice=None):
         self._save_schedule_config()
@@ -832,15 +870,16 @@ class App:
     def _on_auto_debounce_changed(self, _event=None):
         self._save_schedule_config()
 
-    def _apply_schedule_install(self, config):
-        """根据配置安装或卸载 daemon。"""
+    def _apply_schedule_install(self, config) -> bool:
+        """根据配置安装或卸载 daemon。返回是否成功。"""
+        ok = True
         if config.enabled:
             if paths.detect_platform() == "mac":
                 from .scheduler_mac import install as plat_install
-                plat_install(config, config.time_trigger.interval_minutes)
+                ok = plat_install(config, config.time_trigger.interval_minutes)
             elif paths.detect_platform() == "win":
                 from .scheduler_win import install as plat_install
-                plat_install(config, config.time_trigger.interval_minutes)
+                ok = plat_install(config, config.time_trigger.interval_minutes)
         else:
             if paths.detect_platform() == "mac":
                 from .scheduler_mac import uninstall as plat_uninstall
@@ -848,6 +887,7 @@ class App:
             elif paths.detect_platform() == "win":
                 from .scheduler_win import uninstall as plat_uninstall
                 plat_uninstall()
+        return ok
 
     def _open_log(self) -> None:
         """打开日志文件所在目录，选中日志文件。"""
