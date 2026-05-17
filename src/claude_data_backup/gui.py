@@ -691,7 +691,7 @@ class App:
             config.time_trigger.type in ("periodic", "daily", "weekly", "monthly"))
         self.auto_close_var.set(config.condition_triggers.on_claude_close)
         self.auto_interval_var.set(str(config.time_trigger.interval_hours))
-        self.auto_debounce_var.set(str(config.min_interval_hours))
+        self.auto_debounce_var.set(str(config.min_interval_minutes))
         self._update_auto_status(config)
 
     def _save_schedule_config(self):
