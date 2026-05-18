@@ -23,95 +23,102 @@ CONFIG_DIR = Path.home() / ".claude-data-backup"
 
 
 def _daemon_python() -> str:
-    """返回可运行 daemon 的 symlink 路径。
+    """返回可运行 daemon 的可执行文件路径。
 
-    创建一个叫 ClaudeDataBackupDaemon 的 symlink 指向 python，
-    macOS 后台活动通知会显示 "ClaudeDataBackupDaemon" 而非 "Python3"。
+    打包 .app 模式：直接用 .app 的 bootloader（它知道如何从 .pyz 加载模块），
+    配合 --daemon 参数让 run_gui.py 进入 daemon 模式而非打开 GUI。
+    macOS 通知按 argv[0] 文件名显示来源。
 
-    关键约束：不能用 PyInstaller bootloader——它不认识我们的 run_daemon.py，
-    会回退到默认入口 run_gui.py 导致无限打开 GUI 窗口。
+    开发模式：找系统 python + run_daemon.py。
     """
-    import subprocess as _sp
+    exe = sys.executable
+    is_bootloader = ".app/Contents/MacOS/" in exe
 
-    def _is_bootloader(p: str) -> bool:
-        """PyInstaller bootloader 路径特征：在 .app/Contents/MacOS/ 下。"""
-        return ".app/Contents/MacOS/" in p
+    if is_bootloader:
+        # 打包模式：直接用 bootloader，创建命名 symlink
+        real_exe = exe
+    else:
+        # 开发模式：找可用 python
+        import subprocess as _sp
 
-    def _works(p: str) -> bool:
-        if _is_bootloader(p):
-            return False  # bootloader 能跑 -c 但绝不能当 python 用
-        try:
-            return _sp.run(
-                [p, "-c", "import claude_data_backup.autobackup_daemon"],
-                capture_output=True, timeout=10,
-            ).returncode == 0
-        except Exception:
-            return False
+        def _can_run(p: str) -> bool:
+            try:
+                return _sp.run(
+                    [p, "-c", "import sys; print(sys.version)"],
+                    capture_output=True, timeout=10,
+                ).returncode == 0
+            except Exception:
+                return False
 
-    # 找真实 python（绝对不能是 PyInstaller bootloader）
-    candidates = [sys.executable]
-
-    # 如果当前是 bootloader，找 .venv
-    if _is_bootloader(sys.executable):
-        exe_path = Path(sys.executable)
-        for _ in range(6):
-            exe_path = exe_path.parent
-            candidate = exe_path / ".venv" / "bin" / "python3"
-            if candidate.is_file():
-                candidates.insert(0, str(candidate))
+        candidates = ["/opt/homebrew/bin/python3", "/usr/bin/python3"]
+        real_exe = None
+        for c in candidates:
+            if os.path.isfile(c) and _can_run(c):
+                real_exe = c
                 break
-
-    # 系统 python
-    candidates.extend(["/opt/homebrew/bin/python3", "/usr/bin/python3"])
-
-    real_python = None
-    for c in candidates:
-        if os.path.isfile(c) and _works(c):
-            real_python = c
-            break
-
-    if not real_python:
-        # 最后的 fallback（不推荐，但总比没装好）
-        real_python = sys.executable
+        if not real_exe:
+            real_exe = exe
+            log.warning("未找到可用 Python，回退到 sys.executable: %s", real_exe)
 
     # 创建命名 symlink，macOS 按 argv[0] 文件名显示通知来源
     link_path = CONFIG_DIR / "ClaudeDataBackupDaemon"
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     try:
         if link_path.is_symlink():
-            current_target = os.readlink(str(link_path))
-            if current_target != real_python:
+            if os.readlink(str(link_path)) != real_exe:
                 link_path.unlink()
-                os.symlink(real_python, str(link_path))
+                os.symlink(real_exe, str(link_path))
         else:
             if link_path.exists():
                 link_path.unlink()
-            os.symlink(real_python, str(link_path))
+            os.symlink(real_exe, str(link_path))
     except OSError:
-        return real_python
+        return real_exe
 
     return str(link_path)
 
 
 def _daemon_script() -> str:
-    """返回 run_daemon.py 的绝对路径。"""
-    script = Path(__file__).resolve().parent.parent.parent / "run_daemon.py"
-    if script.is_file():
-        return str(script)
+    """返回 daemon 入口参数。
+
+    打包模式：用 --daemon 参数让 run_gui.py 进入 daemon 模式。
+    开发模式：用 run_daemon.py 脚本。
+    """
+    exe = sys.executable
+    if ".app/Contents/MacOS/" in exe:
+        # 打包模式：用 --daemon 参数
+        return "--daemon"
+
+    # 开发模式：找 run_daemon.py
+    dev_script = Path(__file__).resolve().parent.parent.parent / "run_daemon.py"
+    if dev_script.is_file():
+        return str(dev_script)
     return str(Path.home() / "dev" / "claudeDataBackup" / "run_daemon.py")
 
 
 def _daemon_plist_xml() -> str:
     """生成 daemon 的 launchd plist。
 
-    ProgramArguments[0] 用 ClaudeDataBackupDaemon symlink，
-    macOS 通知显示 "ClaudeDataBackupDaemon" 而非 "Python3"。
-    不经过 /bin/sh，直接数组传参。
+    打包模式：bootloader + --daemon（复用 .app 的模块加载能力）。
+    开发模式：python + run_daemon.py。
+    ProgramArguments[0] 用 ClaudeDataBackupDaemon symlink 显示通知来源。
     """
     python = _daemon_python()
     script = _daemon_script()
     stdout = str(LOG_DIR / "daemon.log")
     stderr = str(LOG_DIR / "daemon.err")
+
+    if script == "--daemon":
+        # 打包模式：[bootloader, --daemon]
+        args_xml = f"""
+        <string>{python}</string>
+        <string>--daemon</string>"""
+    else:
+        # 开发模式：[python, run_daemon.py]
+        args_xml = f"""
+        <string>{python}</string>
+        <string>{script}</string>"""
+
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -120,9 +127,7 @@ def _daemon_plist_xml() -> str:
     <key>Label</key>
     <string>{PLIST_LABEL}</string>
     <key>ProgramArguments</key>
-    <array>
-        <string>{python}</string>
-        <string>{script}</string>
+    <array>{args_xml}
     </array>
     <key>KeepAlive</key>
     <true/>
