@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.0-dev (WIP · Mac 端开发完成，待 Win 验证)
+## v0.3.0 (2026-05-18)
 
 ### 自动备份调度引擎
 - **`scheduler.py`** (new)：跨平台核心，ScheduleConfig / TimeTrigger / ConditionTriggers dataclass
@@ -18,9 +18,18 @@
 - 系统通知：osascript display notification
 
 ### Windows 执行层
-- **`scheduler_win.py`** (new)：Task Scheduler (schtasks.exe) 管理
+- **`scheduler_win.py`** (new)：HKCU\Run 注册表键实现登录自启（不需要管理员权限）
+- `_find_real_python()` 跳过 PyInstaller bootloader，找真实 Python（pythonw.exe 优先）
 - daemon 复用 `autobackup_daemon.py`（headless 模式，Win 端无 PyObjC）
+- `_pid_exists()` Windows 用 `ctypes.OpenProcess`（`os.kill` 不可靠）
 - 通知：log fallback（预留 winrt toast 接口）
+
+### Bug 修复（Windows 端验证）
+- `schtasks /Create /SC ONLOGON` 在 Win11 需管理员 → 改用 HKCU\Run 注册表
+- PyInstaller bootloader 重启 daemon 会重复打开 GUI → `_find_real_python()` 跳过 bootloader
+- `run_daemon.py` 打包后路径失效 → 改用 `python -c "import ..."` 启动
+- daemon 黑色控制台窗口 → 优先使用 `pythonw.exe`
+- `signal.signal(SIGTERM)` 非主线程崩溃 → 添加线程检查
 
 ### 动态 User-Agent 检测
 - **`paths.py`**：`detect_claude_desktop_info()` + `get_user_agent()`
@@ -47,6 +56,8 @@
 ### 兼容性验证
 - Claude Desktop 0.14.2 → 1.7196.0：Cookie v10、Cache v5、API 端点全部兼容
 - Claude Code 2.1.114 → 2.1.143：JSONL schema 不变
+- Windows 全功能验证：Mode A 22 条 + Mode B 3 条 + Mode C 9 条，CLI schedule 全部正常
+- Mac 回归验证：smoke test 8/8，Mode B 40 条 + Mode C 54 session 正常
 
 ---
 

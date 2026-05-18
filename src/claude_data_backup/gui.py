@@ -842,6 +842,11 @@ class App:
 
     def _poll_auto_status(self):
         """定时刷新 daemon 状态。"""
+        from .autobackup_daemon import is_daemon_running
+        if is_daemon_running():
+            self._daemon_state = "running"
+        elif self._daemon_state == "running":
+            self._daemon_state = "stopped"
         self._update_auto_status()
         self.root.after(5000, self._poll_auto_status)
 

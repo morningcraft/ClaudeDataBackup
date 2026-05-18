@@ -18,6 +18,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -37,11 +38,21 @@ CLAUDE_POLL_INTERVAL = 3     # Claude 进程轮询间隔（秒）
 
 
 def _pid_exists(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
+    if sys.platform == "win32":
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if handle:
+            kernel32.CloseHandle(handle)
+            return True
         return False
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
 
 
 def write_status(**kwargs):
@@ -152,14 +163,16 @@ def run_daemon():
         trigger_types=[],
     )
 
-    # 注册 SIGTERM handler
+    # 注册 SIGTERM handler（仅主线程可用）
     stop_requested = False
 
-    def _on_sigterm(signum, frame):
-        nonlocal stop_requested
-        stop_requested = True
-
-    signal.signal(signal.SIGTERM, _on_sigterm)
+    if threading.current_thread() is threading.main_thread():
+        def _on_sigterm(signum, frame):
+            nonlocal stop_requested
+            stop_requested = True
+        signal.signal(signal.SIGTERM, _on_sigterm)
+    else:
+        log.debug("非主线程启动，跳过 SIGTERM handler 注册")
 
     last_time_check = 0.0
     was_claude_running = _check_claude_running()
