@@ -443,12 +443,18 @@ def _has_pyobjc() -> bool:
 
 # ─── 入口 ─────────────────────────────────────────────
 
-if __name__ == "__main__":
-    if "--stop" in sys.argv:
-        stop_daemon()
-    elif "--headless" in sys.argv:
+def main():
+    """daemon 入口：自动选择菜单栏模式或 headless 模式。"""
+    if "--headless" in sys.argv:
         run_daemon()
     elif _has_pyobjc() and PLATFORM == "mac":
         _run_daemon_with_menubar()
     else:
         run_daemon()
+
+
+if __name__ == "__main__":
+    if "--stop" in sys.argv:
+        stop_daemon()
+    else:
+        main()

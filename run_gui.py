@@ -8,10 +8,11 @@ import sys
 
 if "--daemon" in sys.argv:
     # daemon 模式：不需要 GUI，不需要 i18n
+    # 自动选择菜单栏模式（macOS PyObjC）或 headless 模式
     from claude_data_backup.log import setup_logging
     setup_logging()
-    from claude_data_backup.autobackup_daemon import run_daemon
-    run_daemon()
+    from claude_data_backup.autobackup_daemon import main as daemon_main
+    daemon_main()
 else:
     from claude_data_backup.i18n import init_language
     from claude_data_backup.config import get_backup_dir
