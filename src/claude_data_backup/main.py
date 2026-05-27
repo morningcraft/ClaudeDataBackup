@@ -33,6 +33,31 @@ from .file_extractor import extract_all_files
 
 log = get_logger(__name__)
 
+# ── 退出码常量 ──
+EXIT_SUCCESS = 0
+EXIT_ERROR = 1
+EXIT_INVALID_ARGS = 2
+EXIT_AUTH_FAILURE = 3
+EXIT_PARTIAL = 4
+
+_SUBCOMMANDS = {"capabilities", "list", "status"}
+
+
+def _emit_json(data: dict, file=sys.stdout) -> None:
+    """将 data 作为 JSON 输出到指定流。"""
+    json.dump(data, file, ensure_ascii=False, indent=2)
+    print(file=file)
+
+
+def _make_json_logger() -> tuple[Callable[[str], None], list[str]]:
+    """返回 (logger_fn, messages)。logger 追加到 list 而非 print。"""
+    messages: list[str] = []
+
+    def _log(msg: str) -> None:
+        messages.append(msg)
+
+    return _log, messages
+
 
 def _default_output_dir() -> Path:
     date = datetime.now().strftime("%Y-%m-%d")
@@ -618,6 +643,189 @@ def _handle_schedule(action: str, args):
         run_daemon()
 
 
+# ── Agent 子命令 ──────────────────────────────────────────
+
+def cmd_capabilities(json_mode: bool) -> None:
+    """返回工具能力描述。纯静态，无 I/O。"""
+    data = {
+        "version": __version__,
+        "tool": "claude-data-backup",
+        "modes": {
+            "a": {
+                "name": "Online API",
+                "description": _("agent.mode_a_desc"),
+                "requires": ["sessionKey"],
+                "incremental": True,
+                "output": "desktop-conversations/",
+            },
+            "b": {
+                "name": "Cache Mining",
+                "description": _("agent.mode_b_desc"),
+                "requires": ["claude_desktop_installed"],
+                "incremental": True,
+                "output": "desktop-conversations/",
+            },
+            "c": {
+                "name": "Claude Code CLI",
+                "description": _("agent.mode_c_desc"),
+                "requires": ["~/.claude/projects/"],
+                "incremental": True,
+                "output": "claude-code/",
+            },
+        },
+        "subcommands": sorted(_SUBCOMMANDS),
+        "flags": [
+            "--output", "--incremental", "--mode", "--verbose",
+            "--set-backup-dir", "--schedule", "--json", "--version",
+        ],
+        "exit_codes": {
+            "0": _("exit.success"),
+            "1": _("exit.error"),
+            "2": _("exit.invalid_args"),
+            "3": _("exit.auth_failure"),
+            "4": _("exit.partial"),
+        },
+        "incremental_hint": _("agent.incremental_hint"),
+        "config_path": "~/.claude-data-backup/config.json",
+        "manifest_path": "<backup_dir>/manifest.json",
+        "agents_doc": "AGENTS.md",
+    }
+    if json_mode:
+        _emit_json(data)
+    else:
+        print(_("agent.capabilities_title"))
+        print(f"  v{data['version']}")
+        print()
+        for key, m in data["modes"].items():
+            print(f"  Mode {key}: {m['name']} — {m['description']}")
+        print()
+        print(_("agent.incremental_hint"))
+        print()
+        print(f"  {_('cli.subcommand_list')}: claude-data-backup list")
+        print(f"  {_('cli.subcommand_status')}: claude-data-backup status")
+        print(f"  {_('cli.subcommand_capabilities')}: claude-data-backup capabilities")
+        print()
+        print("  --json: " + _("cli.json_help"))
+
+
+def cmd_list(json_mode: bool) -> None:
+    """轻量本地发现，不调用网络 API。"""
+    pr = paths.report()
+    platform = pr.get("platform", "unknown")
+
+    # Mode A: cookie 状态
+    cookie_info = cookies.describe_cookie_state()
+    mode_a_available = cookie_info.get("has_session_key", False)
+
+    # Mode B: 缓存目录
+    cache_dir_exists = pr.get("cache_dir_exists", False)
+
+    # Mode C: Claude Code 会话
+    cc_sessions = cli_exporter.count_sessions()
+    projects_dir_exists = pr.get("cli_projects_dir_exists", False)
+
+    # 配置
+    backup_dir = cfg.get_backup_dir()
+    sources = cfg.get_sources()
+
+    data = {
+        "platform": platform,
+        "sources": {
+            "mode_a": {
+                "available": mode_a_available,
+                "cookie_status": {
+                    "cookies_readable": cookie_info.get("cookies_readable", False),
+                    "cookies_count": cookie_info.get("cookies_count", 0),
+                    "has_session_key": cookie_info.get("has_session_key", False),
+                    "hosts_seen": cookie_info.get("hosts_seen", []),
+                },
+            },
+            "mode_b": {
+                "available": cache_dir_exists,
+                "cache_dir": pr.get("cache_dir", ""),
+                "cache_dir_exists": cache_dir_exists,
+            },
+            "mode_c": {
+                "available": projects_dir_exists,
+                "projects_dir": pr.get("cli_projects_dir", ""),
+                "projects_dir_exists": projects_dir_exists,
+                "sessions": cc_sessions,
+            },
+        },
+        "config": {
+            "backup_dir": str(backup_dir),
+            "sources": sources,
+        },
+    }
+
+    if json_mode:
+        _emit_json(data)
+    else:
+        print(_("agent.list_title"))
+        print(f"  {_('agent.platform')}: {platform}")
+        print()
+        # Mode A
+        if mode_a_available:
+            print(f"  {_('agent.mode_a_cookie_ok')}")
+        else:
+            print(f"  {_('agent.mode_a_cookie_none')}")
+        # Mode B
+        if cache_dir_exists:
+            print(f"  {_('agent.mode_b_cache_ok')}")
+        else:
+            print(f"  {_('agent.mode_b_cache_none')}")
+        # Mode C
+        if projects_dir_exists:
+            print(f"  {_('agent.mode_c_sessions', real=cc_sessions['real'], observer=cc_sessions['observer'])}")
+        else:
+            print(f"  {_('agent.mode_c_none')}")
+        print()
+        print(f"  {_('agent.backup_dir')}: {backup_dir}")
+
+
+def cmd_status(json_mode: bool) -> None:
+    """读取已有的备份状态。"""
+    backup_dir = cfg.get_backup_dir()
+    has_manifest = (backup_dir / "manifest.json").is_file()
+
+    manifest_data = mf.load_manifest(backup_dir)
+    summary = mf.summary(manifest_data)
+    config = cfg.load_config()
+
+    last_run = config.get("last_run_stats") or {}
+    data = {
+        "backup_dir": str(backup_dir),
+        "manifest": {
+            "version": manifest_data.get("version", 0),
+            "last_backup_time": manifest_data.get("last_backup_time", ""),
+            "conversation_count": summary.get("conversation_count", 0),
+            "session_count": summary.get("session_count", 0),
+            "real_session_count": summary.get("real_session_count", 0),
+        },
+        "last_run": {
+            "time": config.get("last_run_time", ""),
+            "mode_a_count": last_run.get("mode_a", 0),
+            "mode_b_count": last_run.get("mode_b", 0),
+            "mode_c_real": last_run.get("mode_c_real", 0),
+        },
+        "has_manifest": has_manifest,
+    }
+
+    if json_mode:
+        _emit_json(data)
+    else:
+        print(_("agent.status_title"))
+        print(f"  {_('agent.backup_dir')}: {backup_dir}")
+        print()
+        if has_manifest:
+            print(f"  {_('agent.manifest_found', conv=summary['conversation_count'], sess=summary['session_count'])}")
+            last_time = manifest_data.get("last_backup_time", "")
+            if last_time:
+                print(f"  {_('agent.last_backup', time=last_time)}")
+        else:
+            print(f"  {_('agent.manifest_none')}")
+
+
 def main():
     init_language(cfg.get_backup_dir())
     setup_logging()
@@ -632,6 +840,27 @@ def main():
         except Exception as e:
             log.warning("stdout 编码切换失败: %s", e)
 
+    # ── 子命令 pre-scan 路由 ──
+    if len(sys.argv) > 1 and sys.argv[1] in _SUBCOMMANDS:
+        json_mode = "--json" in sys.argv
+        cmd = sys.argv[1]
+        try:
+            if cmd == "capabilities":
+                cmd_capabilities(json_mode)
+            elif cmd == "list":
+                cmd_list(json_mode)
+            elif cmd == "status":
+                cmd_status(json_mode)
+        except Exception:
+            log.critical("子命令 '%s' 执行失败", cmd, exc_info=True)
+            if json_mode:
+                _emit_json({"error": traceback.format_exc()}, file=sys.stderr)
+            else:
+                traceback.print_exc()
+            sys.exit(EXIT_ERROR)
+        sys.exit(EXIT_SUCCESS)
+
+    # ── 原有 argparse 流程 ──
     ap = argparse.ArgumentParser(
         description=_("cli.description")
     )
@@ -644,12 +873,14 @@ def main():
     ap.add_argument("--mode", default="abc",
                     help=_("cli.mode_help"))
     ap.add_argument("--verbose", "-v", action="store_true", help=_("cli.verbose_help"))
+    ap.add_argument("--json", action="store_true", default=False,
+                    help=_("cli.json_help"))
     ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     ap.add_argument("--schedule", choices=["install", "uninstall", "status", "run"],
                     default=None, help=_("cli.schedule_help"))
     args = ap.parse_args()
-    log.info("参数: output=%s, incremental=%s, mode=%s, set_backup_dir=%s, schedule=%s",
-             args.output, args.incremental, args.mode, args.set_backup_dir, args.schedule)
+    log.info("参数: output=%s, incremental=%s, mode=%s, set_backup_dir=%s, schedule=%s, json=%s",
+             args.output, args.incremental, args.mode, args.set_backup_dir, args.schedule, args.json)
 
     # ── schedule 子命令 ──
     if args.schedule:
@@ -667,10 +898,16 @@ def main():
     if not any(c in modes for c in "abc"):
         log.error("--mode 至少要包含 a/b/c 中的一个: %s", args.mode)
         print(_("cli.mode_error"), file=sys.stderr)
-        sys.exit(2)
+        sys.exit(EXIT_INVALID_ARGS)
 
-    def logger(msg):
-        print(msg, flush=True)
+    # ── JSON 模式：logger 收集到 list ──
+    if args.json:
+        logger, json_messages = _make_json_logger()
+    else:
+        json_messages = None
+
+        def logger(msg):
+            print(msg, flush=True)
 
     try:
         if args.incremental:
@@ -685,10 +922,24 @@ def main():
             save_language_preference(out)
     except Exception:
         log.critical("CLI 执行失败", exc_info=True)
-        traceback.print_exc()
-        sys.exit(1)
+        if args.json:
+            _emit_json({"error": traceback.format_exc()}, file=sys.stderr)
+        else:
+            traceback.print_exc()
+        sys.exit(EXIT_ERROR)
 
-    # 最后的汇总
+    # ── JSON 输出 ──
+    if args.json:
+        exit_code = _determine_exit_code(stats, modes)
+        _emit_json({
+            "status": "ok",
+            "exit_code": exit_code,
+            "stats": stats,
+            "log": json_messages,
+        })
+        sys.exit(exit_code)
+
+    # ── 人类可读汇总 ──
     log.info("CLI 执行完成: %s", stats)
     print("\n" + _("cli.summary_header"))
     if args.incremental:
@@ -704,6 +955,41 @@ def main():
           f" (real={stats['mode_c'].get('real', 0)})")
     if not args.incremental:
         print(_("cli.output_label", dir=str(args.output or _default_output_dir())))
+
+
+def _determine_exit_code(stats: dict, modes: str) -> int:
+    """根据备份结果 stats 和选择的 modes 确定退出码。"""
+    mode_a_auth_fail = False
+    any_mode_ok = False
+
+    if "a" in modes:
+        a_status = stats.get("mode_a", {}).get("status", "")
+        a_reason = stats.get("mode_a", {}).get("reason", "")
+        # 检查 reason 是否是 i18n key 或已翻译的认证相关字符串
+        reason_str = str(a_reason)
+        is_auth_issue = ("no_key" in reason_str or "sessionKey" in reason_str
+                         or "sessionkey" in reason_str.lower()
+                         or "invalid" in reason_str)
+        if a_status == "skipped" and is_auth_issue:
+            mode_a_auth_fail = True
+        elif a_status == "ok":
+            any_mode_ok = True
+    if "b" in modes:
+        if stats.get("mode_b", {}).get("status") == "ok":
+            any_mode_ok = True
+    if "c" in modes:
+        if stats.get("mode_c", {}).get("status") == "ok":
+            any_mode_ok = True
+
+    # 只选了 mode_a 且认证失败
+    if mode_a_auth_fail and not any_mode_ok:
+        return EXIT_AUTH_FAILURE
+
+    # mode_a 认证失败但其他模式成功
+    if mode_a_auth_fail and any_mode_ok:
+        return EXIT_PARTIAL
+
+    return EXIT_SUCCESS
 
 
 if __name__ == "__main__":

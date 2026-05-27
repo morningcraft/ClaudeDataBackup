@@ -299,5 +299,36 @@
   "gui.msgbox_schedule_uninstalled": "Auto-backup has been uninstalled",
 
   "notify.backup_success": "ClaudeDataBackup: backup complete ({count} conversations)",
-  "notify.backup_failure": "ClaudeDataBackup: backup failed, check logs"
+  "notify.backup_failure": "ClaudeDataBackup: backup failed, check logs",
+
+  "cli.json_help": "Output machine-readable JSON (for all commands and subcommands)",
+  "cli.subcommand_capabilities": "Show tool capabilities (modes, parameters, exit codes)",
+  "cli.subcommand_list": "Discover local Claude content (cookie status, cache, CLI sessions)",
+  "cli.subcommand_status": "Show current backup state (manifest summary, last run)",
+
+  "agent.capabilities_title": "ClaudeDataBackup Capabilities",
+  "agent.list_title": "Local Claude Content Discovery",
+  "agent.status_title": "Backup Status",
+  "agent.platform": "Platform",
+  "agent.backup_dir": "Backup Directory",
+  "agent.mode_a_desc": "Full conversation backup via claude.ai API",
+  "agent.mode_b_desc": "Extract conversations from Claude Desktop HTTP cache",
+  "agent.mode_c_desc": "Export Claude Code local session logs",
+  "agent.mode_a_cookie_ok": "Mode A: sessionKey available (ready)",
+  "agent.mode_a_cookie_none": "Mode A: no sessionKey (login to Claude Desktop first)",
+  "agent.mode_b_cache_ok": "Mode B: cache directory found",
+  "agent.mode_b_cache_none": "Mode B: Claude Desktop not installed or cache missing",
+  "agent.mode_c_sessions": "Mode C: {real} real + {observer} observer sessions",
+  "agent.mode_c_none": "Mode C: Claude Code CLI not used",
+  "agent.manifest_none": "No manifest found. Run a backup first.",
+  "agent.manifest_found": "Manifest: {conv} conversations, {sess} sessions",
+  "agent.last_backup": "Last backup: {time}",
+  "agent.no_backups_yet": "No backups recorded yet",
+  "agent.incremental_hint": "Run --incremental multiple times on the same backup directory for incremental backups — only new and changed content will be downloaded",
+
+  "exit.success": "Backup completed successfully",
+  "exit.error": "Runtime error occurred",
+  "exit.invalid_args": "Invalid arguments",
+  "exit.auth_failure": "Authentication failure (no valid sessionKey)",
+  "exit.partial": "Partial success (some modes failed)"
 }

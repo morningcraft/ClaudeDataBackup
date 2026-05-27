@@ -299,5 +299,36 @@
   "gui.msgbox_schedule_uninstalled": "自动备份已卸载",
 
   "notify.backup_success": "ClaudeDataBackup 备份完成，{count} 条对话已保存",
-  "notify.backup_failure": "ClaudeDataBackup 备份失败，请查看日志"
+  "notify.backup_failure": "ClaudeDataBackup 备份失败，请查看日志",
+
+  "cli.json_help": "输出机器可读 JSON（适用于所有命令和子命令）",
+  "cli.subcommand_capabilities": "显示工具能力（模式、参数、退出码）",
+  "cli.subcommand_list": "发现本地 Claude 内容（cookie 状态、缓存、CLI 会话）",
+  "cli.subcommand_status": "显示当前备份状态（清单摘要、上次运行）",
+
+  "agent.capabilities_title": "ClaudeDataBackup 能力",
+  "agent.list_title": "本地 Claude 内容发现",
+  "agent.status_title": "备份状态",
+  "agent.platform": "平台",
+  "agent.backup_dir": "备份目录",
+  "agent.mode_a_desc": "通过 claude.ai API 备份完整对话",
+  "agent.mode_b_desc": "从 Claude Desktop HTTP 缓存中提取对话",
+  "agent.mode_c_desc": "导出 Claude Code 本地会话日志",
+  "agent.mode_a_cookie_ok": "Mode A: sessionKey 可用（就绪）",
+  "agent.mode_a_cookie_none": "Mode A: 无 sessionKey（请先登录 Claude Desktop）",
+  "agent.mode_b_cache_ok": "Mode B: 缓存目录已找到",
+  "agent.mode_b_cache_none": "Mode B: Claude Desktop 未安装或缓存缺失",
+  "agent.mode_c_sessions": "Mode C: {real} 个真实 + {observer} 个观察器会话",
+  "agent.mode_c_none": "Mode C: 未使用 Claude Code CLI",
+  "agent.manifest_none": "未找到清单文件。请先运行备份。",
+  "agent.manifest_found": "清单: {conv} 条对话, {sess} 个会话",
+  "agent.last_backup": "上次备份: {time}",
+  "agent.no_backups_yet": "尚无备份记录",
+  "agent.incremental_hint": "在同一备份目录下多次运行 --incremental 可实现增量备份，只下载新的和变化的内容",
+
+  "exit.success": "备份成功完成",
+  "exit.error": "运行时错误",
+  "exit.invalid_args": "参数无效",
+  "exit.auth_failure": "认证失败（无有效 sessionKey）",
+  "exit.partial": "部分成功（某些模式失败）"
 }

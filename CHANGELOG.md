@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.0 (2026-05-28)
+
+### Agent-Driven Backup（Agent 可调用的 CLI 模式）
+- **三个新子命令**：`capabilities`（工具能力自描述）、`list`（本地内容发现）、`status`（备份状态查询）
+- **`--json` 全局 flag**：所有命令和子命令支持机器可读 JSON 输出，Agent 可靠解析
+- **标准化退出码**：0=成功、1=运行时错误、2=参数无效、3=认证失败、4=部分成功
+- **`AGENTS.md`**（new）：Agent 自描述文档，Agent 读了就能完整理解工具并开始工作
+- **`ClaudeDataBackupCLI.spec`**（new）：Console-only PyInstaller spec，供 Agent 调用的 CLI 二进制
+- 子命令通过 pre-scan `sys.argv[1]` 路由，不改现有 argparse 结构，完全向后兼容
+
+### 使用场景
+用户装完 DMG → 对 Claude Code 说"我装了个备份工具" → Agent 自动发现内容、执行备份、展示结果，全程不需要打开 GUI
+
+### i18n
+- zh.json / en.json 各新增约 25 个 key（`cli.*`、`agent.*`、`exit.*`）
+
 ## v0.3.0 (2026-05-18)
 
 ### 自动备份调度引擎

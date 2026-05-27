@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claude-data-backup"
-version = "0.3.0"
+version = "0.4.0"
 description = "Cross-platform backup tool for Claude data: live API backup + HTTP cache mining + Claude Code CLI session export."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
