@@ -42,6 +42,21 @@ For daily use, Mode A with incremental backup is enough. Mode B and C are for re
 2. Double-click to run
 3. If Windows Defender SmartScreen shows a warning, click "More info" → "Run anyway" (due to no code signing certificate)
 
+### One more thing: tell Claude Code to back up for you
+
+After installing, you don't even need to open the app. Just tell Claude Code:
+
+> "I installed a Claude backup tool called ClaudeDataBackup, figure out how to use it and back up my data."
+
+Claude Code will automatically:
+1. Discover what's on your machine (conversations, cache, CLI sessions)
+2. Run an incremental backup
+3. Show you the results
+
+No GUI needed. The entire conversation is in natural language. If something goes wrong, you can always open the app manually — all backups (including agent-driven ones) show up in the GUI.
+
+---
+
 ### GUI walkthrough
 
 ![ClaudeDataBackup English UI](screenshots/gui-en.png)
@@ -90,6 +105,23 @@ claude-data-backup --output ~/Desktop/my-export
 # Account banned: only run cache mining and CLI logs
 claude-data-backup --output /tmp/x --mode bc
 ```
+
+### Agent Integration (v0.4.0+)
+
+ClaudeDataBackup supports machine-readable JSON output, so local agents (Claude Code, etc.) can drive backups programmatically:
+
+```bash
+# Agent discovers what's available
+claude-data-backup list --json
+
+# Agent runs incremental backup
+claude-data-backup --incremental --json
+
+# Agent checks backup status
+claude-data-backup status --json
+```
+
+Exit codes: `0`=success, `3`=auth failure (need to log in to Claude Desktop), `4`=partial success. See [`AGENTS.md`](AGENTS.md) for the full agent integration guide.
 
 ---
 

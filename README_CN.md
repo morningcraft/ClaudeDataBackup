@@ -42,6 +42,21 @@ ClaudeDataBackup 在你的账号还活着的时候，把对话数据拉到本地
 2. 双击运行
 3. 如果 Windows Defender SmartScreen 弹出警告，点"更多信息" → "仍要运行"（因为没有代码签名证书）
 
+### 更简单的方式：让 Claude Code 帮你备份
+
+装完之后，你甚至不需要打开应用。直接跟 Claude Code 说：
+
+> "我装了一个 Claude 备份工具叫 ClaudeDataBackup，你帮我看下怎么用，把我的数据备份一下。"
+
+Claude Code 会自动：
+1. 发现你电脑上有哪些 Claude 内容（对话、缓存、CLI 会话）
+2. 执行增量备份
+3. 把结果展示给你
+
+全程不需要打开 GUI，用自然语言对话就行。万一出了什么问题，你随时可以手动双击打开应用——所有备份记录（包括 Agent 驱动的）在 GUI 里都能看到。
+
+---
+
 ### GUI 操作流程
 
 ![ClaudeDataBackup 中文界面](screenshots/gui-zh.png)
@@ -90,6 +105,23 @@ claude-data-backup --output ~/Desktop/my-export
 # 账号已封时，只跑缓存和 CLI 日志
 claude-data-backup --output /tmp/x --mode bc
 ```
+
+### Agent 集成（v0.4.0+）
+
+ClaudeDataBackup 支持机器可读的 JSON 输出，本地 Agent（Claude Code 等）可以直接调用：
+
+```bash
+# Agent 发现本地内容
+claude-data-backup list --json
+
+# Agent 执行增量备份
+claude-data-backup --incremental --json
+
+# Agent 检查备份状态
+claude-data-backup status --json
+```
+
+退出码：`0`=成功、`3`=认证失败（需要登录 Claude Desktop）、`4`=部分成功。详见 [`AGENTS.md`](AGENTS.md)。
 
 ---
 
