@@ -69,6 +69,3 @@ htmlcov/
 
 # Internal dev docs (not for public repo)
 CLAUDE.md
-STATUS.md
-testing-log.md
-docs/handoff.md
